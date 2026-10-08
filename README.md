@@ -45,7 +45,8 @@ No chat, escreva em português:
 - `para Paris, Londres ou Roma saindo de CNF em 05/01, uma semana`
 - `Rio de Janeiro -> Miami 15 de janeiro, 12 dias, ±3 dias, máximo 5 mil`
 
-No formulário lateral escolha **Cidade(s)** (IATA separados por vírgula) ou **Região**.
+No formulário lateral escolha **Cidade** (nome ou código; várias separadas por vírgula) ou **Região**.
+Veja o [glossário](#glossário-origens-e-destinos) do que pode ser digitado.
 
 ### Linha de comando
 
@@ -65,6 +66,116 @@ Use os parâmetros diretos (0 tokens). Chame o Python do venv, sem ativar nada:
 ```cron
 0 7 * * * cd "/caminho/flight-agent" && .venv/bin/python -m flight_agent --origin GRU --region europa --depart 2026-12-10 --stay 10 --flex 1 --max-price 3500
 ```
+
+## Glossário: origens e destinos
+
+Em **Origem** e **Destino** você pode digitar o **nome da cidade** (sem diferença entre maiúsculas,
+minúsculas ou acentos: `São Paulo`, `sao paulo`, `SAO PAULO`) ou o **código IATA**.
+
+- **Nome da cidade**: aceito no chat e no formulário para as cidades das tabelas abaixo. Cada nome
+  vira o aeroporto principal indicado.
+- **Código de aeroporto** (3 letras, ex.: `CGH`): aceito em qualquer lugar, para qualquer
+  aeroporto do mundo, mesmo fora das tabelas.
+- **Código de cidade** (ex.: `SAO`, `LON`): cobre todos os aeroportos da cidade de uma vez. Com
+  preços reais (Travelpayouts) costuma trazer mais ofertas, porque inclui voos saindo ou chegando
+  em qualquer um deles.
+- No chat com Gemini ligado, cidades fora das tabelas também costumam ser entendidas. Com as regras
+  locais, use o código.
+- Para descobrir um código: busque "código IATA" + cidade, ou use a
+  [busca da IATA](https://www.iata.org/en/publications/directories/code-search/).
+
+### América do Sul — Brasil
+
+| Nome aceito | Aeroporto usado | Código da cidade | Outros aeroportos da cidade |
+|---|---|---|---|
+| São Paulo, Guarulhos | `GRU` (Guarulhos) | `SAO` | `CGH` Congonhas, `VCP` Viracopos |
+| Congonhas | `CGH` | `SAO` | |
+| Campinas | `VCP` (Viracopos) | | |
+| Rio de Janeiro, Rio | `GIG` (Galeão) | `RIO` | `SDU` Santos Dumont |
+| Brasília | `BSB` | | |
+| Belo Horizonte | `CNF` (Confins) | `BHZ` | `PLU` Pampulha |
+| Salvador | `SSA` | | |
+| Recife | `REC` | | |
+| Fortaleza | `FOR` | | |
+| Natal | `NAT` | | |
+| Maceió | `MCZ` | | |
+| João Pessoa | `JPA` | | |
+| Porto Alegre | `POA` | | |
+| Curitiba | `CWB` | | |
+| Florianópolis | `FLN` | | |
+| Manaus | `MAO` | | |
+
+### América do Sul — outros países
+
+| Nome aceito | Aeroporto usado | Código da cidade | Outros aeroportos da cidade |
+|---|---|---|---|
+| Buenos Aires (Argentina) | `EZE` (Ezeiza) | `BUE` | `AEP` Aeroparque |
+| Santiago (Chile) | `SCL` | | |
+| Lima (Peru) | `LIM` | | |
+| Bogotá (Colômbia) | `BOG` | | |
+| Montevidéu (Uruguai) | `MVD` | | |
+
+### América do Norte
+
+| Nome aceito | Aeroporto usado | Código da cidade | Outros aeroportos da cidade |
+|---|---|---|---|
+| Nova York, New York | `JFK` | `NYC` | `EWR` Newark, `LGA` LaGuardia |
+| Miami | `MIA` | | `FLL` Fort Lauderdale (próximo) |
+| Orlando | `MCO` | `ORL` | |
+| Los Angeles | `LAX` | | |
+
+### América Central e Caribe
+
+| Nome aceito | Aeroporto usado | Código da cidade | Outros aeroportos da cidade |
+|---|---|---|---|
+| Cancún (México) | `CUN` | | |
+| Punta Cana (Rep. Dominicana) | `PUJ` | | |
+| Panamá (Cidade do Panamá) | `PTY` | | |
+
+### Europa
+
+| Nome aceito | Aeroporto usado | Código da cidade | Outros aeroportos da cidade |
+|---|---|---|---|
+| Lisboa | `LIS` | | |
+| Porto | `OPO` | | |
+| Madri, Madrid | `MAD` | | |
+| Barcelona | `BCN` | | |
+| Paris | `CDG` (Charles de Gaulle) | `PAR` | `ORY` Orly |
+| Londres | `LHR` (Heathrow) | `LON` | `LGW` Gatwick, `STN` Stansted |
+| Roma | `FCO` (Fiumicino) | `ROM` | `CIA` Ciampino |
+| Milão | `MXP` (Malpensa) | `MIL` | `LIN` Linate, `BGY` Bergamo |
+| Amsterdã | `AMS` | | |
+| Frankfurt | `FRA` | | |
+| Zurique | `ZRH` | | |
+
+### Ásia e Oriente Médio
+
+| Nome aceito | Aeroporto usado | Código da cidade | Outros aeroportos da cidade |
+|---|---|---|---|
+| Dubai (Emirados Árabes) | `DXB` | | |
+| Tóquio, Tokyo (Japão) | `NRT` (Narita) | `TYO` | `HND` Haneda |
+
+### África e Oceania
+
+Nenhuma cidade com nome pré-cadastrado. Use o código, ex.: `JNB` (Joanesburgo), `CPT` (Cidade do
+Cabo), `CMN` (Casablanca), `SYD` (Sydney), `AKL` (Auckland).
+
+### Regiões (só como destino)
+
+No chat ("qualquer cidade da Europa") ou no formulário, opção **Região**. A busca percorre todos
+os destinos da lista:
+
+| Região | Como escrever no chat | Destinos consultados |
+|---|---|---|
+| Europa | `Europa` | LIS, MAD, BCN, CDG, LHR, FCO, AMS, FRA, MXP, ZRH, OPO |
+| América do Sul | `América do Sul`, `América Latina` | EZE, SCL, LIM, BOG, MVD |
+| Estados Unidos | `Estados Unidos`, `EUA`, `USA` | MIA, MCO, JFK, LAX |
+| Caribe / América Central | `Caribe`, `América Central` | CUN, PUJ, PTY |
+| Nordeste do Brasil | `Nordeste` | REC, SSA, FOR, NAT, MCZ, JPA |
+
+Para incluir cidades ou mudar uma região, edite `CITIES` e `REGIONS` em
+[flight_agent/geo.py](flight_agent/geo.py) (e o nome de exibição em `CITY_NAMES`, em
+[flight_agent/present.py](flight_agent/present.py)).
 
 ## Custo de IA e consultas
 
