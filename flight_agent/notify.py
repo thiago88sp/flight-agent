@@ -2,9 +2,15 @@
 também envia pelo Telegram (com botão de compra quando houver link)."""
 import html
 import os
+import re
 import sys
 
 API = "https://api.telegram.org/bot{token}/{method}"
+
+
+def valid_token(token) -> bool:
+    """Token do BotFather: '<id numérico>:<segredo>'."""
+    return bool(re.fullmatch(r"\d+:[\w-]{30,}", token or ""))
 
 
 def telegram_enabled() -> bool:

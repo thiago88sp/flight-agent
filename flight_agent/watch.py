@@ -165,10 +165,19 @@ def main(argv=None):
     a = ap.parse_args(argv)
 
     if a.telegram_chat_id:
-        token = os.getenv("TELEGRAM_BOT_TOKEN")
+        token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
         if not token:
             sys.exit("Defina TELEGRAM_BOT_TOKEN no .env primeiro.")
-        chats = notify.telegram_chat_ids(token)
+        if not notify.valid_token(token):
+            sys.exit("TELEGRAM_BOT_TOKEN incompleto: o formato é <números>:<segredo>, ex.: "
+                     "7123456789:AAH... Copie a linha inteira da mensagem do @BotFather.")
+        try:
+            chats = notify.telegram_chat_ids(token)
+        except Exception as e:
+            code = getattr(getattr(e, "response", None), "status_code", None)
+            sys.exit("O Telegram recusou o token (revogado ou digitado errado?). Gere outro com "
+                     "/revoke no @BotFather." if code in (401, 404) else
+                     f"Não consegui falar com o Telegram: {type(e).__name__}")
         if not chats:
             sys.exit("Nenhuma mensagem encontrada: mande um 'oi' para o seu bot e rode de novo.")
         for cid, name in chats:
