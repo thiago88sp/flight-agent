@@ -58,3 +58,16 @@ def test_chat_pedido_incompleto_mostra_erro_sem_quebrar():
     assert not at.exception, at.exception
     assert len(at.error) == 1
     assert len(at.session_state.history) == 2    # pergunta + resposta de erro
+
+
+def test_criar_monitoramento_pela_interface():
+    from flight_agent import watch
+    at = load()
+    at.sidebar.button[0].click().run()
+    criar = [b for b in at.button if b.label == "Criar monitoramento"]
+    criar[0].click().run()
+    assert not at.exception, at.exception
+    items = watch.load_watches()
+    assert len(items) == 1 and items[0]["query"]["dests"] == ["LIS"]
+    assert any("Monitorando" in s.value for s in at.success)
+    assert "Monitoramentos (1)" in " ".join(e.label for e in at.sidebar.expander)

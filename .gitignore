@@ -5,3 +5,5 @@ __pycache__/
 .env
 price_history.jsonl
 .DS_Store
+watches.json
+watch_state.json

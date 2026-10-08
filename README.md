@@ -13,6 +13,7 @@ mesmo isso é opcional (há um interpretador por regras, grátis e offline).
 - **Datas flexíveis** (± dias) e estadia (ida e volta ou só ida), filtro de escalas e teto de preço
 - **Botão de compra** em cada oferta: abre o itinerário no Aviasales (preços reais) ou a mesma busca no Google Flights (preços simulados)
 - Aceita **nomes de cidades** no formulário ("São Paulo", "Lisboa") além de códigos IATA
+- **Monitoramento automático**: preço-alvo + prazo, verificação a cada 4 h no GitHub Actions e alerta no Telegram com link de compra
 - **Histórico** de menores preços por rota e alerta de queda ou de preço abaixo do teto
 - Preços **simulados** por padrão; **reais** via Travelpayouts / Aviasales Data API (grátis)
 
@@ -65,6 +66,59 @@ Use os parâmetros diretos (0 tokens). Chame o Python do venv, sem ativar nada:
 
 ```cron
 0 7 * * * cd "/caminho/flight-agent" && .venv/bin/python -m flight_agent --origin GRU --region europa --depart 2026-12-10 --stay 10 --flex 1 --max-price 3500
+```
+
+## Monitoramento automático (alertas no Telegram)
+
+Transforme uma busca num **monitoramento**: o agente refaz a busca sozinho a cada 4 horas e manda
+uma mensagem no Telegram, com botão de compra, quando o preço ficar **até o seu alvo**.
+
+- Avisa na primeira vez que atinge o alvo e depois **só se cair ainda mais** (sem spam).
+- Ao fim do prazo (padrão 30 dias), manda um resumo com o menor preço visto e para.
+- **Não compra sozinho**, de propósito: o Aviasales só compara preços (quem vende é a companhia
+  ou a agência), o preço do cache pode estar defasado e uma compra errada costuma não ter
+  reembolso. O alerta traz o link: um toque e você confere e compra.
+
+### 1. Criar o bot do Telegram (uma vez)
+
+1. No Telegram, abra **@BotFather** → `/newbot` → escolha nome e usuário → copie o **token**.
+2. Coloque no `.env`: `TELEGRAM_BOT_TOKEN=...`
+3. Mande um "oi" para o seu bot e descubra o seu chat id:
+   ```bash
+   python -m flight_agent.watch --telegram-chat-id   # imprime TELEGRAM_CHAT_ID=...
+   ```
+4. Coloque no `.env`: `TELEGRAM_CHAT_ID=...` e teste: `python -m flight_agent.watch --test`
+
+### 2. Criar monitoramentos
+
+Na interface, depois de uma busca, abra **🔔 Monitorar esta busca**, defina o preço-alvo e o prazo.
+Eles ficam em `watches.json` (fora do git) e aparecem em **🔔 Monitoramentos**, na barra lateral,
+onde dá para excluir e enviar uma mensagem de teste.
+
+### 3. Rodar sozinho no GitHub Actions (mesmo com o PC desligado)
+
+Em **Settings → Secrets and variables → Actions → New repository secret**, crie:
+
+| Secret | Valor |
+|---|---|
+| `TRAVELPAYOUTS_TOKEN` | o mesmo do `.env` |
+| `TELEGRAM_BOT_TOKEN` | o mesmo do `.env` |
+| `TELEGRAM_CHAT_ID` | o mesmo do `.env` |
+| `WATCHES` | o JSON mostrado em **🔔 Monitoramentos** (ou `python -m flight_agent.watch --export`) |
+
+Depois, em **Actions → monitorar precos → Run workflow**, rode uma vez para testar. A partir daí
+ele roda a cada 4 horas ([.github/workflows/watch.yml](.github/workflows/watch.yml)).
+
+- Os monitoramentos ficam num **secret** (o repositório é público e eles revelam seus planos de
+  viagem); o estado (menor preço visto, último aviso) fica no **cache do Actions**, não em arquivo.
+- Ao criar ou excluir monitoramentos na interface, atualize o secret `WATCHES` com o JSON novo.
+- O GitHub **desativa agendamentos** de repositórios públicos sem nenhum commit por 60 dias; se
+  isso acontecer, reative em Actions.
+
+Alternativa local (só roda com o PC/WSL ligado):
+
+```cron
+17 */4 * * * cd "/caminho/flight-agent" && ~/.venvs/flight-agent/bin/python -m flight_agent.watch >> watch.log 2>&1
 ```
 
 ## Glossário: origens e destinos
@@ -231,11 +285,12 @@ flight_agent/
   present.py            textos amigáveis: cidades, companhias, datas, preços e link de compra
   geo.py                cidades conhecidas e regiões
   history.py            histórico de preços (JSON Lines)
-  notify.py             ponto de extensão para alertas (hoje imprime)
+  notify.py             alertas: tela e Telegram
+  watch.py              monitoramentos: verificação periódica e avisos
   config.py             variáveis de ambiente / .env
   cli.py, __main__.py   linha de comando
 tests/                  pytest (parser, busca, histórico, interface)
-.github/workflows/      CI: roda pytest a cada push
+.github/workflows/      tests.yml: pytest a cada push · watch.yml: monitoramentos a cada 4 h
 ```
 
 ## Testes
@@ -255,10 +310,10 @@ chamadas reais ao Travelpayouts, Gemini e Ollama (dependem de rede e credenciais
 - O interpretador por regras entende o formato "origem para destino, data, dias, teto"; frases muito
   livres funcionam melhor com Gemini/Ollama. Cidades não listadas em `geo.py` precisam do código IATA.
 - Sem busca "para qualquer lugar do mundo": o conjunto de destinos vem das regiões definidas em `geo.py`.
-- O alerta hoje só imprime; troque `notify()` por Telegram, e-mail ou WhatsApp.
+- O secret `WATCHES` do GitHub é atualizado à mão (copiar e colar o JSON da interface).
 
 ## Próximos passos sugeridos
 
-- Notificação por Telegram/e-mail em `notify.py`.
+- Criar/excluir monitoramentos pelo próprio Telegram (comandos para o bot).
 - Histórico em SQLite e gráfico de evolução de preço por rota.
-- Provedores adicionais (mesma interface `search(origin, dest, depart, ret)`).
+- Provedores adicionais (interface `search(...)` ou `search_month(...)`, ver `providers.py`).

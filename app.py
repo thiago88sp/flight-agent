@@ -6,6 +6,7 @@ Rodar:  streamlit run app.py
 O formulário lateral não usa IA. O chat usa o interpretador configurado em LLM_PROVIDER
 (padrão: regras locais, grátis). Busca, ranking e alertas são Python puro.
 """
+import json
 from datetime import date, timedelta
 
 import pandas as pd
@@ -13,7 +14,8 @@ import streamlit as st
 
 import flight_agent as fa
 from flight_agent.search import nearby
-from flight_agent import config, providers
+from flight_agent import config, notify, providers
+from flight_agent import watch as watches
 from flight_agent import present as fmt
 from flight_agent.geo import REGION_LABELS, REGIONS
 
@@ -141,6 +143,30 @@ def empty_state(res, key):
                        icon=":material/open_in_new:", key=f"{key}-gf")
     st.caption("Dicas: aumente a flexibilidade de datas, aceite escalas ou tente outro mês ou "
                "outro destino da mesma região.")
+    ref = min((o["price"] for o in near), default=3000)
+    watch_box(p, int(ref // 100 * 100) or 100, key)
+
+
+REPO_SECRETS = "https://github.com/thiago88sp/flight-agent/settings/secrets/actions"
+
+
+def watch_box(params, suggested, key):
+    """Caixa para transformar a busca num monitoramento com preço-alvo."""
+    with st.expander("🔔 Monitorar esta busca e me avisar quando baixar"):
+        with st.form(f"{key}-watch", border=False):
+            c1, c2 = st.columns(2)
+            target = c1.number_input("Avise quando custar até (R$)", 100, 100000,
+                                     int(suggested), step=100, key=f"{key}-target")
+            days = c2.number_input("Monitorar por (dias)", 1, 90, 30, key=f"{key}-days")
+            if st.form_submit_button("Criar monitoramento", icon=":material/notifications:"):
+                w = watches.new_watch(params, target, days)
+                watches.add_watch(w)
+                # recarrega para a barra lateral (já desenhada) mostrar o novo monitoramento
+                st.session_state.flash = (
+                    f"🔔 Monitorando **{w['label']}** até {fmt.day(w['until'])}: aviso no Telegram "
+                    f"quando custar até **{fmt.money(target)}**. Veja em **Monitoramentos**, na "
+                    "barra lateral, como ativar no GitHub.")
+                st.rerun()
 
 
 def render(res, key):
@@ -161,6 +187,7 @@ def render(res, key):
         st.success(f"🔔 {a}")
 
     best_card(origin, info["best"], per_dest[0], key)
+    watch_box(p, int(info["best"]["price"] * 0.9 // 100 * 100) or 100, key)
 
     # Mais opções: com vários destinos, o melhor de cada um; senão, as próximas mais baratas
     others = [e["best"] for e in per_dest[1:6]] if multi else results[1:6]
@@ -196,6 +223,34 @@ def render(res, key):
 
 
 # ---------------------------------------------------------------- barra lateral
+def watch_panel():
+    items = watches.load_watches()
+    state = watches.load_state()
+    with st.expander(f"🔔 Monitoramentos ({len(items)})"):
+        if not items:
+            st.caption("Nenhum ainda. Faça uma busca e use **Monitorar esta busca**.")
+        for w in items:
+            stt = state.get(w["id"], {})
+            seen = f" · menor visto {fmt.money(stt['best'])}" if stt.get("best") else ""
+            c1, c2 = st.columns([5, 1], vertical_alignment="center")
+            c1.markdown(f"**{w['label']}**  \nalvo {fmt.money(w['target'])} · até "
+                        f"{fmt.day(w['until'])}{seen}")
+            if c2.button("", icon=":material/delete:", key=f"del-{w['id']}", help="Excluir"):
+                watches.remove_watch(w["id"])
+                st.rerun()
+        st.markdown("**Telegram:** " + ("✅ configurado" if notify.telegram_enabled()
+                                         else "⚠️ falta TELEGRAM_BOT_TOKEN/CHAT_ID no .env"))
+        if notify.telegram_enabled() and st.button("Enviar mensagem de teste"):
+            ok = notify.send_telegram("✅ Teste do Agente de Passagens: os alertas chegarão aqui.")
+            (st.success if ok else st.error)("Enviado!" if ok else "Falhou; veja o terminal.")
+        if items:
+            st.markdown(f"**Ativar no GitHub:** copie o JSON abaixo para o secret `WATCHES` em "
+                        f"[Settings → Secrets → Actions]({REPO_SECRETS}). Repita ao criar ou "
+                        "excluir monitoramentos.")
+            st.code(json.dumps(items, ensure_ascii=False, separators=(",", ":")), language="json",
+                    wrap_lines=True)
+
+
 with st.sidebar:
     st.header("🔎 Nova busca")
     mode = st.radio("Para onde?", ["Cidade", "Região"], horizontal=True)
@@ -228,6 +283,7 @@ with st.sidebar:
                f"±{config.stay_tolerance()} dias (STAY_TOLERANCE).\n")
             + f"- Limite por busca: {config.max_calls()} consultas (MAX_CALLS).\n"
             "- Cada busca guarda o menor preço por rota e avisa quando cai.")
+    watch_panel()
     st.caption(f"Preços: {'⚠️ simulados' if IS_MOCK else '✅ reais (Aviasales)'}  \n"
                "Chat: " + ("regras locais" if PARSER == "rules" else f"✅ {PARSER}"))
 
@@ -238,6 +294,8 @@ st.caption("Diga para onde quer ir e quando. Eu comparo as datas e destinos e mo
 
 if "history" not in st.session_state:
     st.session_state.history = []
+if flash := st.session_state.pop("flash", None):
+    st.success(flash)
 
 example = None
 if not st.session_state.history:
