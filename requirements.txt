@@ -1,0 +1,6 @@
+streamlit>=1.40
+pandas
+requests
+
+# Opcional: só se for usar LLM_PROVIDER=anthropic
+# anthropic
