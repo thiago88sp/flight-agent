@@ -13,11 +13,12 @@ rules parser is included).
 
 - **Chat and form** web app (Streamlit): `streamlit run app.py`
 - **Command line**, ready for cron: `python -m flight_agent ...`
+- **Domestic (Brazil) and international flights**
 - **One destination, a list, or a whole region** ("any city in Europe")
 - **Flexible dates** (± days), trip length (round trip or one-way), stops filter and budget
 - **Book button** on every offer: opens the itinerary on Aviasales (real prices) or the same search
   on Google Flights (simulated prices)
-- Accepts **city names** ("São Paulo", "Lisbon") as well as IATA codes
+- Accepts **city names** ("São Paulo", "Lisbon"), **Brazilian states** ("Santa Catarina") and IATA codes
 - Understands requests in **English and Portuguese**
 - **Price watches**: target price + time window, checked every 4 h on GitHub Actions, Telegram alert
   with a booking link
@@ -35,8 +36,11 @@ cp .env.example .env        # optional: add your keys (see docs/SETUP.md)
 streamlit run app.py        # opens http://localhost:8501
 ```
 
-Without any key the app works with **simulated prices** and the **local rules parser**, so you can
-try everything before creating accounts.
+Without any key the app works with **simulated prices** (it says "Demo mode") and the **local
+rules parser**, so you can try everything before creating accounts.
+
+The web app is written for **travelers**, not developers: technical details stay hidden. Set
+`DEV_MODE=true` in `.env` to see them (parser used, limits, raw errors, the JSON for GitHub).
 
 > On recent Debian/Ubuntu the global `pip` is blocked (PEP 668), hence the `venv`.
 > On WSL, if the project lives under `/mnt/c` (e.g. OneDrive), create the venv on the Linux disk,
@@ -56,6 +60,7 @@ Type in the chat, in English or Portuguese:
 - `GRU to any city in Europe in March, 10 days, nonstop`
 - `to Paris, London or Rome from CNF on Jan 5, a week`
 - `Rio de Janeiro -> Miami January 15th, 12 days, ±3 days, budget of 5k`
+- `São Paulo to Santa Catarina on Jan 8, 7 days` (domestic; the state maps to Florianópolis)
 - `GRU para Lisboa por volta de 10/12, 10 dias, até R$ 4000`
 
 > Numeric dates are **day/month**: `10/12` is **December 10**. To avoid ambiguity, write the month
@@ -99,7 +104,8 @@ How to set it up, step by step: **[docs/SETUP.md](docs/SETUP.md)** (sections 4, 
 1. Create a Telegram bot with **@BotFather** and put `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` in `.env`.
 2. In the web app, after a search, open **🔔 Watch this search**, set the target and the window.
 3. On GitHub, add the secrets `TRAVELPAYOUTS_TOKEN`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` and
-   `WATCHES` (the JSON shown under **🔔 Price watches**), then run **Actions → price watches**.
+   `WATCHES` (`python -m flight_agent.watch --export`, or the JSON shown under **🔔 Price watches**
+   when `DEV_MODE=true`), then run **Actions → price watches**.
 
 Useful commands:
 
@@ -125,13 +131,16 @@ Local alternative (only runs while the PC/WSL is on):
 
 ## Glossary: origins and destinations
 
-In **From** and **To** you can type a **city name** (case and accents don't matter: `São Paulo`,
-`sao paulo`, `SAO PAULO`) or an **IATA code**.
+Both **domestic (Brazil) and international** routes work. In **From** and **To** you can type a
+**city name** (case and accents don't matter: `São Paulo`, `sao paulo`, `SAO PAULO`), a
+**Brazilian state** or an **IATA code**.
 
 - **City name**: accepted in the chat and in the form for the cities in the tables below, in
   English or Portuguese. Each name maps to the main airport shown.
 - **Airport code** (3 letters, e.g. `CGH`): accepted everywhere, for any airport in the world,
   even outside the tables.
+- **Brazilian state** (e.g. `Santa Catarina`, `Bahia`): becomes the state's main airport, see the
+  [states table](#brazilian-states).
 - **City code** (e.g. `SAO`, `LON`): covers every airport in the city at once. With real prices
   (Travelpayouts) it usually returns more offers, because it includes flights from or to any of them.
 - With Gemini enabled in the chat, cities outside the tables are usually understood too. With the
@@ -159,6 +168,43 @@ In **From** and **To** you can type a **city name** (case and accents don't matt
 | Curitiba | `CWB` | | |
 | Florianópolis | `FLN` | | |
 | Manaus | `MAO` | | |
+| Belém | `BEL` | | |
+| Goiânia | `GYN` | | |
+| São Luís | `SLZ` | | |
+| Cuiabá | `CGB` | | |
+| Campo Grande | `CGR` | | |
+| Teresina | `THE` | | |
+| Aracaju | `AJU` | | |
+| Vitória | `VIX` | | |
+| Palmas | `PMW` | | |
+| Porto Velho | `PVH` | | |
+| Boa Vista | `BVB` | | |
+| Macapá | `MCP` | | |
+| Rio Branco | `RBR` | | |
+
+### Brazilian states
+
+Typing a state searches its main airport:
+
+| State | Airport used | State | Airport used |
+|---|---|---|---|
+| Acre | `RBR` Rio Branco | Paraíba | `JPA` João Pessoa |
+| Alagoas | `MCZ` Maceió | Paraná | `CWB` Curitiba |
+| Amapá | `MCP` Macapá | Pernambuco | `REC` Recife |
+| Amazonas | `MAO` Manaus | Piauí | `THE` Teresina |
+| Bahia | `SSA` Salvador | Rio de Janeiro | `GIG` Rio de Janeiro |
+| Ceará | `FOR` Fortaleza | Rio Grande do Norte | `NAT` Natal |
+| Distrito Federal | `BSB` Brasília | Rio Grande do Sul | `POA` Porto Alegre |
+| Espírito Santo | `VIX` Vitória | Rondônia | `PVH` Porto Velho |
+| Goiás | `GYN` Goiânia | Roraima | `BVB` Boa Vista |
+| Maranhão | `SLZ` São Luís | Santa Catarina | `FLN` Florianópolis |
+| Mato Grosso | `CGB` Cuiabá | São Paulo | `GRU` Guarulhos |
+| Mato Grosso do Sul | `CGR` Campo Grande | Sergipe | `AJU` Aracaju |
+| Minas Gerais, Minas | `CNF` Belo Horizonte | Tocantins | `PMW` Palmas |
+| Pará | `BEL` Belém (form only*) | | |
+
+\* In the chat, "para" is also the Portuguese word for "to" ("GRU **para** Lisboa"), so for Pará
+type `Belém` or `BEL` there. The form accepts `Pará`.
 
 ### South America — other countries
 
@@ -228,7 +274,7 @@ destination in the list:
 | Caribbean / Central America | `Caribbean`, `Central America`, `Caribe` | CUN, PUJ, PTY |
 | Northeast Brazil | `Northeast Brazil`, `Nordeste` | REC, SSA, FOR, NAT, MCZ, JPA |
 
-To add cities or change a region, edit `CITIES` and `REGIONS` in
+To add cities, states or regions, edit `CITIES`, `STATES` and `REGIONS` in
 [flight_agent/geo.py](flight_agent/geo.py) (and the display name in `CITY_NAMES`, in
 [flight_agent/present.py](flight_agent/present.py)).
 

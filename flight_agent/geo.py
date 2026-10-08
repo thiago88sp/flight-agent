@@ -10,7 +10,10 @@ CITIES = {
     "rio de janeiro": "GIG", "rio": "GIG", "brasilia": "BSB", "belo horizonte": "CNF",
     "salvador": "SSA", "recife": "REC", "fortaleza": "FOR", "porto alegre": "POA",
     "curitiba": "CWB", "florianopolis": "FLN", "natal": "NAT", "manaus": "MAO",
-    "maceio": "MCZ", "joao pessoa": "JPA",
+    "maceio": "MCZ", "joao pessoa": "JPA", "belem": "BEL", "goiania": "GYN",
+    "sao luis": "SLZ", "cuiaba": "CGB", "campo grande": "CGR", "teresina": "THE",
+    "porto velho": "PVH", "boa vista": "BVB", "aracaju": "AJU", "palmas": "PMW",
+    "vitoria": "VIX", "macapa": "MCP", "rio branco": "RBR",
     # Europe
     "lisbon": "LIS", "lisboa": "LIS", "porto": "OPO", "oporto": "OPO",
     "madrid": "MAD", "madri": "MAD", "barcelona": "BCN", "paris": "CDG",
@@ -28,6 +31,20 @@ CITIES = {
     # Asia and Middle East
     "dubai": "DXB", "tokyo": "NRT", "toquio": "NRT",
 }
+
+# Brazilian state (lowercase, no accents) -> main airport, so "São Paulo to Santa Catarina" works.
+# "São Paulo" and "Rio de Janeiro" are already cities above.
+STATES = {
+    "acre": "RBR", "alagoas": "MCZ", "amapa": "MCP", "amazonas": "MAO", "bahia": "SSA",
+    "ceara": "FOR", "distrito federal": "BSB", "espirito santo": "VIX", "goias": "GYN",
+    "maranhao": "SLZ", "mato grosso": "CGB", "mato grosso do sul": "CGR",
+    "minas gerais": "CNF", "minas": "CNF", "para": "BEL", "paraiba": "JPA", "parana": "CWB",
+    "pernambuco": "REC", "piaui": "THE", "rio grande do norte": "NAT",
+    "rio grande do sul": "POA", "rondonia": "PVH", "roraima": "BVB",
+    "santa catarina": "FLN", "sergipe": "AJU", "tocantins": "PMW",
+}
+# "para" is also the Portuguese word for "to", so the chat only accepts it in the form
+CHAT_STATES = {k: v for k, v in STATES.items() if k != "para"}
 
 # Internal key -> airports searched when the request is "any city in <region>"
 REGIONS = {

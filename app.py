@@ -23,6 +23,7 @@ st.set_page_config(page_title="Flight Deal Agent", page_icon="✈️", layout="w
 
 PARSER = fa.llm_provider()
 IS_MOCK = providers.using_mock()
+DEV = config.dev_mode()  # technical details only for developers (DEV_MODE=true in .env)
 
 EXAMPLES = [
     "São Paulo to Lisbon around Dec 10, 10 days",
@@ -162,15 +163,17 @@ def watch_box(params, suggested, key):
                 watches.add_watch(w)
                 # rerun so the sidebar (already drawn) shows the new watch
                 st.session_state.flash = (
-                    f"🔔 Watching **{w['label']}** until {fmt.day(w['until'])}: Telegram alert at "
-                    f"or below **{fmt.money(target)}**. See **Price watches** in the sidebar for "
-                    "how to enable it on GitHub.")
+                    f"🔔 Watching **{w['label']}** until {fmt.day(w['until'])}. You'll get a "
+                    f"Telegram message when it costs **{fmt.money(target)}** or less.")
                 st.rerun()
 
 
 def render(res, key):
-    for e in res.get("errors", []):
-        st.error(f"⚠️ {e}")
+    if res.get("errors"):
+        st.error("⚠️ Prices are temporarily unavailable. Please try again in a few minutes.")
+        if DEV:
+            for e in res["errors"]:
+                st.caption(f"🛠️ {e}")
     if res["empty"]:
         if not res.get("errors"):
             empty_state(res, key)
@@ -214,11 +217,11 @@ def render(res, key):
         all_offers_table(origin, results)
 
     if IS_MOCK:
-        st.caption("⚠️ **Simulated** prices for testing. The button opens Google Flights with the "
-                   "same route and dates so you can see the real price.")
+        st.caption("⚠️ These are example prices (demo mode). The button opens Google Flights with "
+                   "the same route and dates so you can see real fares.")
     else:
-        st.caption("Prices from the Aviasales cache (recent searches by other travelers). "
-                   "The final price is confirmed on the seller's site before you pay.")
+        st.caption("Prices come from recent searches on Aviasales and can change. The final price "
+                   "is shown on the seller's site before you pay.")
 
 
 # ---------------------------------------------------------------- sidebar
@@ -237,12 +240,15 @@ def watch_panel():
             if c2.button("", icon=":material/delete:", key=f"del-{w['id']}", help="Delete"):
                 watches.remove_watch(w["id"])
                 st.rerun()
-        st.markdown("**Telegram:** " + ("✅ configured" if notify.telegram_enabled()
-                                         else "⚠️ set TELEGRAM_BOT_TOKEN/CHAT_ID in .env"))
-        if notify.telegram_enabled() and st.button("Send a test message"):
-            ok = notify.send_telegram("✅ Flight Deal Agent test: your alerts will arrive here.")
-            (st.success if ok else st.error)("Sent!" if ok else "Failed; check the terminal.")
-        if items:
+        if notify.telegram_enabled():
+            st.caption("Alerts arrive on Telegram.")
+            if st.button("Send me a test alert"):
+                ok = notify.send_telegram("✅ Flight Deal Agent test: your alerts will arrive here.")
+                (st.success if ok else st.error)("Sent! Check Telegram." if ok else
+                                                 "Couldn't send it. Please try again later.")
+        else:
+            st.caption("⚠️ Telegram alerts are not connected yet.")
+        if DEV and items:
             st.markdown(f"**Enable on GitHub:** copy the JSON below into the `WATCHES` secret at "
                         f"[Settings → Secrets → Actions]({REPO_SECRETS}). Repeat whenever you "
                         "create or delete a watch.")
@@ -255,7 +261,7 @@ with st.sidebar:
     mode = st.radio("Where to?", ["City", "Region"], horizontal=True)
     with st.form("form"):
         origin_txt = st.text_input("From", "São Paulo",
-                                   help="City name or airport code. "
+                                   help="City, Brazilian state or airport code. "
                                         "SAO = every São Paulo airport.")
         if mode == "Region":
             region = st.selectbox("Region", list(REGIONS), format_func=REGION_LABELS.get)
@@ -263,8 +269,9 @@ with st.sidebar:
         else:
             region = None
             dest_txt = st.text_input("To", "Lisbon",
-                                     help="One or more cities separated by commas "
-                                          "(e.g. Lisbon, Madrid, CDG).")
+                                     help="One or more places separated by commas: cities, "
+                                          "Brazilian states or airport codes "
+                                          "(e.g. Lisbon, Santa Catarina, CDG).")
         depart = st.date_input("Departure date (approximate)", date.today() + timedelta(days=60),
                                format="YYYY-MM-DD")
         stay = st.number_input("Trip length in days (0 = one-way)", 0, 60, 10)
@@ -274,22 +281,24 @@ with st.sidebar:
         go = st.form_submit_button("Search flights", type="primary", width="stretch",
                                    icon=":material/search:")
 
-    with st.expander("ℹ️ How it works"):
-        st.markdown(
-            "- The form uses no AI (0 tokens). The chat uses the parser shown below.\n"
-            + ("- Queries = destinations × dates (± flexibility).\n" if IS_MOCK else
-               "- One query per destination and month; the return may vary by "
-               f"±{config.stay_tolerance()} days (STAY_TOLERANCE).\n")
-            + f"- Limit per search: {config.max_calls()} queries (MAX_CALLS).\n"
-            "- Every search stores the lowest price per route and tells you when it drops.")
     watch_panel()
-    st.caption(f"Prices: {'⚠️ simulated' if IS_MOCK else '✅ real (Aviasales)'}  \n"
-               "Chat: " + ("local rules" if PARSER == "rules" else f"✅ {PARSER}"))
+    if IS_MOCK:
+        st.caption("⚠️ Demo mode: prices are examples, not real fares.")
+    if DEV:
+        with st.expander("🛠️ Developer info"):
+            st.markdown(
+                f"- Prices: {'simulated' if IS_MOCK else 'Travelpayouts (Aviasales cache)'}\n"
+                f"- Chat parser: {PARSER} (the form uses no AI)\n"
+                + ("- Queries = destinations × dates (± flexibility)\n" if IS_MOCK else
+                   "- One query per destination and month; return may vary by "
+                   f"±{config.stay_tolerance()} days (STAY_TOLERANCE)\n")
+                + f"- Limit per search: {config.max_calls()} queries (MAX_CALLS)")
 
 # ---------------------------------------------------------------- conversation
 st.title("✈️ Flight Deal Agent")
-st.caption("Tell me where and when you want to go. I compare dates and destinations and show "
-           "you where to book the cheapest ticket. English or Portuguese both work.")
+st.caption("Tell me where and when you want to go, in Brazil or abroad. I compare dates and "
+           "destinations and show you where to book the cheapest ticket. "
+           "English or Portuguese both work.")
 
 if "history" not in st.session_state:
     st.session_state.history = []
@@ -326,7 +335,7 @@ def handle(user_text, params_fn, info=None):
                 params = params_fn()
                 summary = describe(params)
                 res = run_search(params)
-            note = f"parsed by: {info['how']}" if info and info.get("how") else None
+            note = f"🛠️ parsed by: {info['how']}" if DEV and info and info.get("how") else None
             st.markdown(summary)
             if note:
                 st.caption(note)

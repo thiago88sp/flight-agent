@@ -36,7 +36,7 @@ def test_query_plan_and_sorting():
 
 def test_query_limit():
     p = params(region="europe", dest="", flex=4)  # 11 destinations × 9 dates = 99 > 80
-    with pytest.raises(ValueError, match="queries"):
+    with pytest.raises(ValueError, match="too broad"):
         search_grid(FakeProvider(), p)
     assert len(search_grid(FakeProvider(), p, max_calls=500)) == plan_calls(p)
 

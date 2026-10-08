@@ -1,7 +1,8 @@
 # Setup guide
 
 This guide takes you from zero to a working Flight Deal Agent with real prices, a smarter chat and
-Telegram alerts that run on GitHub even when your computer is off. Every step says how to check
+Telegram alerts that run on GitHub even when your computer is off. It works for **domestic
+(Brazil) and international** flights. Every step says how to check
 that it worked before moving on.
 
 | Step | What you get | Needed? | Cost | Time |
@@ -51,9 +52,16 @@ All keys go into a local file called `.env`, which is **never committed** to git
    ```
    Open <http://localhost:8501> in your browser.
 
-**✅ Check:** the sidebar footer shows **Prices: ⚠️ simulated** and **Chat: local rules**. Click one
-of the example buttons; you should see a result card with a **Book on Google Flights** button.
+**✅ Check:** the sidebar footer says **⚠️ Demo mode: prices are examples, not real fares.** Click
+one of the example buttons; you should see a result card with a **Book on Google Flights** button.
 Everything works at this point, just with fake prices.
+
+> **Consumer view vs. developer mode.** The web app is designed for travelers, so it hides
+> technical details. While you are setting things up, you can turn them on by adding
+> `DEV_MODE=true` to `.env` and restarting the app: the sidebar gets a **🛠️ Developer info** panel
+> (price source, chat parser, limits), each chat answer shows which parser handled it, errors show
+> their technical cause, and the price-watch panel shows the JSON for GitHub (step 7). Set it back
+> to `false` before sharing the app with others.
 
 ---
 
@@ -80,9 +88,10 @@ Kayak). Its Data API is free and returns prices that other travelers recently fo
    ```
 7. Save the file and **restart** the web app (Ctrl+C in the terminal, then `streamlit run app.py`).
 
-**✅ Check:** the sidebar shows **Prices: ✅ real (Aviasales)**. Search for
+**✅ Check:** the **Demo mode** note disappears from the sidebar. Search for
 `São Paulo to Lisbon next month, 10 days`; the offers now show real airlines (TAP, LATAM,
-Royal Air Maroc...) and the button says **Book on Aviasales**.
+Royal Air Maroc...) and the button says **Book on Aviasales**. With `DEV_MODE=true`,
+**🛠️ Developer info** shows **Prices: Travelpayouts (Aviasales cache)**.
 
 From the command line:
 ```bash
@@ -115,9 +124,13 @@ Without this key the chat uses local rules, which understand sentences like
    ```
 6. Save and restart the web app.
 
-**✅ Check:** the sidebar shows **Chat: ✅ gemini**. After a chat search, the small grey note under
-the answer says **parsed by: gemini**. If Gemini is slow or down, the note says
-**rules (fallback: gemini failed)**: the app kept working with the local rules.
+**✅ Check:** from the terminal,
+```bash
+python -m flight_agent "I'd like to see Rome sometime in March, about two weeks"
+```
+prints `[parsed by: gemini]` on the first line. If Gemini is slow or down it prints
+`[parsed by: rules (fallback: gemini failed)]`: the app kept working with the local rules.
+In the web app the same note appears under each chat answer when `DEV_MODE=true`.
 
 Good to know:
 - The Gemini **consumer subscription does not include an API key**. The key from AI Studio is
@@ -195,7 +208,7 @@ python -m flight_agent.watch --test
 ```
 
 **✅ Check:** your phone receives *"✅ Flight Deal Agent connected. Your alerts will arrive here."*
-You can also use **Send a test message** under **🔔 Price watches** in the web app sidebar.
+You can also use **Send me a test alert** under **🔔 Price watches** in the web app sidebar.
 
 ### 4.4 Keep the token safe
 
@@ -209,7 +222,7 @@ You can also use **Send a test message** under **🔔 Price watches** in the web
 ## 5. Run the app and make a first search
 
 1. Start the app: `streamlit run app.py` and open <http://localhost:8501>.
-2. Check the sidebar footer: **Prices: ✅ real (Aviasales)** and, if you did step 3, **Chat: ✅ gemini**.
+2. Check that the sidebar no longer shows the **Demo mode** note (that means real prices are on).
 3. Try a search in the chat, for example:
    ```
    São Paulo to Lisbon next month, 10 days
@@ -277,8 +290,8 @@ see them, not even on a public repository.
 | `TELEGRAM_CHAT_ID` | the same value as in your `.env` |
 | `WATCHES` | the JSON of your watches (see below) |
 
-**Getting the `WATCHES` JSON:** in the web app sidebar, open **🔔 Price watches**; under
-**Enable on GitHub** there is a code box with the JSON and a copy button. Or run:
+**Getting the `WATCHES` JSON:** with `DEV_MODE=true` in `.env`, open **🔔 Price watches** in the web
+app sidebar; under **Enable on GitHub** there is a code box with the JSON and a copy button. Or run:
 ```bash
 python -m flight_agent.watch --export
 ```
@@ -318,13 +331,14 @@ From now on it runs by itself every 4 hours (GitHub may start it a few minutes l
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Sidebar still says **simulated** after adding the token | `.env` not saved, or app not restarted | Save `.env` (Ctrl+S) and restart `streamlit run app.py` |
-| Red error **Travelpayouts HTTP 401** | wrong or incomplete token | Copy the token again from the API token page |
+| Sidebar still shows **Demo mode** after adding the token | `.env` not saved, or app not restarted | Save `.env` (Ctrl+S) and restart `streamlit run app.py` |
+| **Prices are temporarily unavailable** | Travelpayouts is down, or the token is wrong (with `DEV_MODE=true` you see e.g. `HTTP 401`) | Wait a few minutes; if it persists, copy the token again from the API token page |
 | **"I couldn't find flights"** with real prices | the free cache has no prices for those dates | Use the closest dates shown, widen flexibility, try a nearer month, or use the Google Flights button |
+| **I don't know the place '...'** | a name that is not a known city, Brazilian state or airport code | Type a city (Florianópolis), a state (Santa Catarina) or the code (FLN); see the README glossary |
 | **TELEGRAM_BOT_TOKEN is incomplete** | only the part after the colon was copied | Copy the whole line, starting with the digits |
 | **Telegram rejected the token** | token revoked or mistyped | `/revoke` in @BotFather and use the new token |
 | **No messages found** when getting the chat id | the bot never received a message from you | Send "hi" to the bot and run the command again |
-| Note says **rules (fallback: gemini failed)** | Gemini timeout or quota | Nothing to do; it works with the rules. Check the key if it happens every time |
+| `[parsed by: rules (fallback: gemini failed)]` | Gemini timeout or quota | Nothing to do; it works with the rules. Check the key if it happens every time |
 | Workflow log: **no offers right now** | same as the cache case above | Normal for far-away dates; the watch keeps checking |
 | Workflow fails reading `WATCHES` | the secret is not valid JSON | Paste the export again, the whole line from `[` to `]` |
 | No scheduled runs anymore | GitHub paused the schedule after 60 days without commits | Actions → price watches → **Enable workflow** |

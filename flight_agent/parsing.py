@@ -17,7 +17,7 @@ import unicodedata
 from datetime import date, timedelta
 
 from . import config
-from .geo import CITIES, REGION_ALIASES, REGION_PATTERNS, REGIONS
+from .geo import CHAT_STATES, CITIES, REGION_ALIASES, REGION_PATTERNS, REGIONS
 
 MONTHS = {
     "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6, "july": 7,
@@ -45,6 +45,8 @@ origin (IATA), dest (IATA or null), region (one of {regions}, or null; use it wh
 depart (YYYY-MM-DD), stay (trip length in days, int or null), flex (± days, int, default 0),
 month ("YYYY-MM" when the request names only a month, no day — e.g. "in March"; then depart = the 15th
 of that month; otherwise null), max_stops (int or null), max_price (number in BRL or null).
+Domestic (Brazil) and international flights are both valid. If the user names a state or a country
+instead of a city, use its main airport (e.g. Santa Catarina -> FLN, Bahia -> SSA, Portugal -> LIS).
 
 Request: {text}"""
 
@@ -144,16 +146,17 @@ def parse_rules(text):
             p["region"] = key
             break
 
-    # --- places: known cities + uppercase IATA codes ---
+    # --- places: known cities and Brazilian states + uppercase IATA codes ---
+    places = {**CHAT_STATES, **CITIES}
     mentions, used = [], []
 
     def free(s, e):
         return all(e <= a or s >= b for a, b in used)
 
-    for city in sorted(CITIES, key=len, reverse=True):
-        for m in re.finditer(r"\b" + re.escape(city) + r"\b", low):
+    for name in sorted(places, key=len, reverse=True):
+        for m in re.finditer(r"\b" + re.escape(name) + r"\b", low):
             if free(m.start(), m.end()):
-                mentions.append((m.start(), m.end(), CITIES[city]))
+                mentions.append((m.start(), m.end(), places[name]))
                 used.append((m.start(), m.end()))
     for m in re.finditer(r"\b[A-Z]{3}\b", norm):
         if m.group() not in _IATA_STOP and free(m.start(), m.end()):
@@ -282,7 +285,9 @@ def normalize_params(p):
         raise ValueError(f"I couldn't understand the {', '.join(missing)}. {HINT}")
     for code in [origin] + dests:
         if not re.fullmatch(r"[A-Z]{3}", code):
-            raise ValueError(f"invalid airport code: {code!r}")
+            raise ValueError(
+                f"I don't know the place '{code.title()}'. Type a city (e.g. Florianópolis), a "
+                f"Brazilian state (e.g. Santa Catarina) or a 3-letter airport code (e.g. FLN).")
     depart = date.fromisoformat(p["depart"])
     flex = timedelta(days=int(p.get("flex") or 0))
     while depart + flex < date.today():  # whole window in the past (LLM got the year wrong): roll forward

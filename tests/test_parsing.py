@@ -144,9 +144,23 @@ def test_incomplete_request_gives_clear_error(text):
         parse(text)
 
 
-def test_invalid_code():
-    with pytest.raises(ValueError, match="invalid"):
-        normalize_params({"origin": "GRU", "dest": "LISBOA", "depart": "2030-01-10"})
+def test_unknown_place_gives_friendly_error():
+    with pytest.raises(ValueError, match="I don't know the place 'Lisboa City'"):
+        normalize_params({"origin": "GRU", "dest": "LISBOA CITY", "depart": "2030-01-10"})
+
+
+def test_brazilian_states_map_to_main_airport():
+    p = parse("São Paulo to Santa Catarina on Jan 8, 7 days")
+    assert (p["origin"], p["dests"]) == ("GRU", ["FLN"])
+    p = parse("de Minas Gerais para Bahia em 10/01, 5 dias")
+    assert (p["origin"], p["dests"]) == ("CNF", ["SSA"])
+    # "para" is the preposition, not the state of Pará
+    assert parse("GRU para Lisboa em 10/12, 10 dias")["dests"] == ["LIS"]
+
+
+def test_domestic_capitals():
+    p = parse("from Goiânia to São Luís on Feb 2, one-way")
+    assert (p["origin"], p["dests"]) == ("GYN", ["SLZ"])
 
 
 def test_failing_llm_falls_back_to_rules(monkeypatch):

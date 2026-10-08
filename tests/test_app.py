@@ -34,7 +34,8 @@ def test_form_by_region():
     assert "Europe (11 destinations)" in t and "Other destinations" in t
 
 
-def test_chat_by_region():
+def test_chat_by_region(monkeypatch):
+    monkeypatch.setenv("DEV_MODE", "true")     # the "parsed by" note is developer info
     at = load()
     at.chat_input[0].set_value("GRU to any city in Europe on 10/12, 10 days").run()
     assert not at.exception, at.exception
@@ -78,3 +79,20 @@ def test_create_watch_from_the_ui():
     assert len(items) == 1 and items[0]["query"]["dests"] == ["LIS"]
     assert any("Watching" in s.value for s in at.success)
     assert "Price watches (1)" in " ".join(e.label for e in at.sidebar.expander)
+
+
+def test_consumer_view_hides_developer_details():
+    at = load()
+    at.chat_input[0].set_value("GRU to Lisbon on 10/12, 10 days").run()
+    assert not at.exception, at.exception
+    notes = " ".join(c.value for m in at.chat_message for c in m.caption)
+    assert "parsed by" not in notes
+    labels = " ".join(e.label for e in at.sidebar.expander)
+    assert "How it works" not in labels and "Developer info" not in labels
+    assert not at.sidebar.code                   # no WATCHES JSON
+
+
+def test_dev_mode_shows_developer_info(monkeypatch):
+    monkeypatch.setenv("DEV_MODE", "true")
+    at = load()
+    assert "Developer info" in " ".join(e.label for e in at.sidebar.expander)

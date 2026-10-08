@@ -31,3 +31,5 @@ def test_city_name_becomes_code():
     assert fmt.to_code("São Paulo") == "GRU"
     assert fmt.to_code(" lisbon ") == fmt.to_code("Lisboa") == "LIS"
     assert fmt.to_code("sao") == "SAO"
+    assert fmt.to_code("Santa Catarina") == "FLN" and fmt.to_code("Pará") == "BEL"
+    assert fmt.city("FLN") == "Florianópolis (FLN)"

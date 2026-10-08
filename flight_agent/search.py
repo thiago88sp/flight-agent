@@ -84,8 +84,8 @@ def search_grid(provider, p, max_calls=None, misses=None):
     limit = max_calls or config.max_calls()
     n = plan_calls(p, provider)
     if n > limit:
-        raise ValueError(f"That would take {n} queries (limit {limit}). Reduce the flexibility, "
-                         f"pick fewer destinations or raise MAX_CALLS.")
+        raise ValueError(f"That search is too broad ({n} price checks, limit {limit}). Reduce the "
+                         f"date flexibility or pick fewer destinations.")
     found = []
     for dest in p["dests"]:
         if by_month(provider):

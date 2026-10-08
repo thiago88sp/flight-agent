@@ -3,7 +3,7 @@ import unicodedata
 from datetime import date
 from urllib.parse import quote_plus
 
-from .geo import CITIES
+from .geo import CITIES, STATES
 
 # IATA code (airport or city) -> display name
 CITY_NAMES = {
@@ -12,7 +12,10 @@ CITY_NAMES = {
     "BSB": "Brasília", "CNF": "Belo Horizonte", "BHZ": "Belo Horizonte", "SSA": "Salvador",
     "REC": "Recife", "FOR": "Fortaleza", "POA": "Porto Alegre", "CWB": "Curitiba",
     "FLN": "Florianópolis", "NAT": "Natal", "MAO": "Manaus", "MCZ": "Maceió",
-    "JPA": "João Pessoa",
+    "JPA": "João Pessoa", "BEL": "Belém", "GYN": "Goiânia", "SLZ": "São Luís",
+    "CGB": "Cuiabá", "CGR": "Campo Grande", "THE": "Teresina", "PVH": "Porto Velho",
+    "BVB": "Boa Vista", "AJU": "Aracaju", "PMW": "Palmas", "VIX": "Vitória",
+    "MCP": "Macapá", "RBR": "Rio Branco",
     "LIS": "Lisbon", "OPO": "Porto", "MAD": "Madrid", "BCN": "Barcelona",
     "CDG": "Paris", "ORY": "Paris", "PAR": "Paris", "LHR": "London", "LGW": "London",
     "LON": "London", "FCO": "Rome", "ROM": "Rome", "AMS": "Amsterdam", "FRA": "Frankfurt",
@@ -102,8 +105,9 @@ def booking_site(offer):
 
 
 def to_code(text):
-    """Accept a code ('lis') or a city name ('Lisbon', 'são paulo') and return the IATA code."""
+    """Accept a code ('lis'), a city ('Lisbon', 'são paulo') or a Brazilian state
+    ('Santa Catarina') and return the IATA code."""
     t = text.strip()
     folded = "".join(c for c in unicodedata.normalize("NFKD", t.lower())
                      if not unicodedata.combining(c))
-    return CITIES.get(folded, t.upper())
+    return CITIES.get(folded) or STATES.get(folded) or t.upper()

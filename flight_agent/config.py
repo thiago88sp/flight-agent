@@ -39,6 +39,12 @@ def stay_tolerance() -> int:
     return int(os.getenv("STAY_TOLERANCE", "3"))
 
 
+def dev_mode() -> bool:
+    """DEV_MODE=true shows technical details in the web app (parser used, limits, raw errors,
+    the WATCHES JSON for GitHub). Off by default: the app is meant for travelers, not developers."""
+    return os.getenv("DEV_MODE", "").strip().lower() in ("1", "true", "yes", "on")
+
+
 def default_origin() -> str:
     return os.getenv("DEFAULT_ORIGIN", "GRU").upper()
 
