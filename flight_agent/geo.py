@@ -1,47 +1,67 @@
-"""Dados geográficos: cidades conhecidas e regiões (listas de aeroportos de destino)."""
+"""Geographic data: known cities and regions (lists of destination airports).
 
-# Nomes sem acento e em minúsculas -> código IATA
+City names are accepted in English and Portuguese, lowercase and without accents.
+"""
+
+# City name (lowercase, no accents) -> IATA airport code
 CITIES = {
+    # Brazil
     "sao paulo": "GRU", "guarulhos": "GRU", "congonhas": "CGH", "campinas": "VCP",
     "rio de janeiro": "GIG", "rio": "GIG", "brasilia": "BSB", "belo horizonte": "CNF",
     "salvador": "SSA", "recife": "REC", "fortaleza": "FOR", "porto alegre": "POA",
     "curitiba": "CWB", "florianopolis": "FLN", "natal": "NAT", "manaus": "MAO",
     "maceio": "MCZ", "joao pessoa": "JPA",
-    "lisboa": "LIS", "porto": "OPO", "madri": "MAD", "madrid": "MAD",
-    "barcelona": "BCN", "paris": "CDG", "londres": "LHR", "roma": "FCO",
-    "amsterda": "AMS", "frankfurt": "FRA", "milao": "MXP", "zurique": "ZRH",
-    "nova york": "JFK", "new york": "JFK", "miami": "MIA", "orlando": "MCO",
-    "los angeles": "LAX", "buenos aires": "EZE", "santiago": "SCL", "lima": "LIM",
-    "bogota": "BOG", "montevideu": "MVD", "cancun": "CUN", "punta cana": "PUJ",
-    "panama": "PTY", "dubai": "DXB", "toquio": "NRT", "tokyo": "NRT",
+    # Europe
+    "lisbon": "LIS", "lisboa": "LIS", "porto": "OPO", "oporto": "OPO",
+    "madrid": "MAD", "madri": "MAD", "barcelona": "BCN", "paris": "CDG",
+    "london": "LHR", "londres": "LHR", "rome": "FCO", "roma": "FCO",
+    "amsterdam": "AMS", "amsterda": "AMS", "frankfurt": "FRA", "milan": "MXP", "milao": "MXP",
+    "zurich": "ZRH", "zurique": "ZRH",
+    # North America
+    "new york": "JFK", "nova york": "JFK", "miami": "MIA", "orlando": "MCO",
+    "los angeles": "LAX",
+    # South America
+    "buenos aires": "EZE", "santiago": "SCL", "lima": "LIM", "bogota": "BOG",
+    "montevideo": "MVD", "montevideu": "MVD",
+    # Central America and Caribbean
+    "cancun": "CUN", "punta cana": "PUJ", "panama city": "PTY", "panama": "PTY",
+    # Asia and Middle East
+    "dubai": "DXB", "tokyo": "NRT", "toquio": "NRT",
 }
 
-# Chave interna -> aeroportos consultados quando o pedido é "qualquer cidade de <região>"
+# Internal key -> airports searched when the request is "any city in <region>"
 REGIONS = {
-    "europa": ["LIS", "MAD", "BCN", "CDG", "LHR", "FCO", "AMS", "FRA", "MXP", "ZRH", "OPO"],
-    "america_do_sul": ["EZE", "SCL", "LIM", "BOG", "MVD"],
-    "eua": ["MIA", "MCO", "JFK", "LAX"],
-    "caribe": ["CUN", "PUJ", "PTY"],
-    "nordeste": ["REC", "SSA", "FOR", "NAT", "MCZ", "JPA"],
+    "europe": ["LIS", "MAD", "BCN", "CDG", "LHR", "FCO", "AMS", "FRA", "MXP", "ZRH", "OPO"],
+    "south_america": ["EZE", "SCL", "LIM", "BOG", "MVD"],
+    "usa": ["MIA", "MCO", "JFK", "LAX"],
+    "caribbean": ["CUN", "PUJ", "PTY"],
+    "brazil_northeast": ["REC", "SSA", "FOR", "NAT", "MCZ", "JPA"],
 }
 
 REGION_LABELS = {
-    "europa": "Europa", "america_do_sul": "América do Sul", "eua": "Estados Unidos",
-    "caribe": "Caribe / América Central", "nordeste": "Nordeste do Brasil",
+    "europe": "Europe", "south_america": "South America", "usa": "United States",
+    "caribbean": "Caribbean / Central America", "brazil_northeast": "Northeast Brazil",
 }
 
-# Padrões (sobre texto sem acento, minúsculo) que indicam cada região
+# Patterns (over lowercase text without accents) that point to each region, EN and PT
 REGION_PATTERNS = [
-    (r"\beuropa\b", "europa"),
-    (r"\bamerica do sul\b|\bamerica latina\b|\bsul.americ", "america_do_sul"),
-    (r"\bestados unidos\b|\beua\b|\busa\b", "eua"),
-    (r"\bcaribe\b|\bamerica central\b", "caribe"),
-    (r"\bnordeste\b", "nordeste"),
+    (r"\beurope\b|\beuropa\b", "europe"),
+    (r"\bsouth america\b|\blatin america\b|\bamerica do sul\b|\bamerica latina\b|\bsul.americ",
+     "south_america"),
+    (r"\bunited states\b|\bthe us\b|\busa\b|\bestados unidos\b|\beua\b", "usa"),
+    (r"\bcaribbean\b|\bcentral america\b|\bcaribe\b|\bamerica central\b", "caribbean"),
+    (r"\bnortheast brazil\b|\bbrazil(?:ian)? northeast\b|\bnordeste\b", "brazil_northeast"),
 ]
 
-# Apelidos aceitos quando um LLM devolve o nome da região em vez da chave interna
+# Names accepted when an LLM, the CLI or an older watch uses a label or the old Portuguese key
 REGION_ALIASES = {
-    "europa": "europa", "america do sul": "america_do_sul", "america latina": "america_do_sul",
-    "estados unidos": "eua", "eua": "eua", "usa": "eua", "caribe": "caribe",
-    "america central": "caribe", "nordeste": "nordeste",
+    "europe": "europe", "europa": "europe",
+    "south america": "south_america", "latin america": "south_america",
+    "america do sul": "south_america", "america latina": "south_america",
+    "america_do_sul": "south_america",
+    "united states": "usa", "us": "usa", "estados unidos": "usa", "eua": "usa",
+    "caribbean": "caribbean", "central america": "caribbean", "caribe": "caribbean",
+    "america central": "caribbean", "caribbean / central america": "caribbean",
+    "northeast brazil": "brazil_northeast", "brazil northeast": "brazil_northeast",
+    "nordeste": "brazil_northeast",
 }

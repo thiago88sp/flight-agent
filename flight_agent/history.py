@@ -1,4 +1,4 @@
-"""Histórico de menores preços por rota (arquivo JSON Lines)."""
+"""Lowest-price history per route (JSON Lines file)."""
 import json
 from datetime import date
 
@@ -6,7 +6,7 @@ from . import config
 
 
 def last_min(route):
-    """Menor preço já registrado para a rota (ex.: 'GRU-LIS') ou None."""
+    """Lowest price ever recorded for the route (e.g. 'GRU-LIS'), or None."""
     path = config.history_file()
     if not path.exists():
         return None

@@ -1,10 +1,10 @@
-"""Configuração por variáveis de ambiente (com .env opcional, sem dependências extras)."""
+"""Configuration from environment variables (optional .env file, no extra dependencies)."""
 import os
 from pathlib import Path
 
 
 def load_dotenv(path=".env"):
-    """Lê KEY=VALUE de um .env sem sobrescrever variáveis já definidas no ambiente."""
+    """Read KEY=VALUE lines from a .env file without overriding variables already set."""
     p = Path(path)
     if not p.exists():
         return
@@ -18,14 +18,14 @@ def load_dotenv(path=".env"):
 
 load_dotenv()
 
-# Modelos usados só se o interpretador correspondente for escolhido
+# Models used only when the matching parser is selected
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 ANTHROPIC_MODEL = os.getenv("PARSER_MODEL", "claude-haiku-5-5")
 
 
-# Lidos a cada chamada (facilita testes e mudanças sem reiniciar)
+# Read on every call (easier testing, changes apply without restarting)
 def history_file() -> Path:
     return Path(os.getenv("FLIGHT_HISTORY", "price_history.jsonl"))
 
@@ -35,7 +35,7 @@ def max_calls() -> int:
 
 
 def stay_tolerance() -> int:
-    """± dias aceitos na estadia quando o provedor busca por mês (cache esparso)."""
+    """± days accepted on the trip length when the provider searches by month (sparse cache)."""
     return int(os.getenv("STAY_TOLERANCE", "3"))
 
 

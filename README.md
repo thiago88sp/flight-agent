@@ -1,146 +1,147 @@
-# Agente de Passagens ✈️
+# Flight Deal Agent ✈️
 
-Agente que recebe um pedido (texto livre ou formulário), varre datas e destinos, ranqueia as ofertas,
-compara com o histórico de preços e dispara alertas. **Projetado para gastar o mínimo de IA**:
-a busca, o ranking e os alertas são Python puro; o chat só precisa de IA para interpretar a frase, e
-mesmo isso é opcional (há um interpretador por regras, grátis e offline).
+An agent that takes a trip request (free text or a form), scans dates and destinations, ranks the
+offers, compares them with your price history, and alerts you on Telegram when a fare hits your
+target. **Built to spend as little AI as possible**: search, ranking and alerts are plain Python;
+the chat only needs AI to understand the sentence, and even that is optional (a free, offline
+rules parser is included).
 
-## O que ele faz
+> **New here?** Follow the step-by-step **[setup guide](docs/SETUP.md)**. It walks you through
+> creating every account, key and bot this project uses, from zero to Telegram alerts.
 
-- **Chat e formulário** (Streamlit): `streamlit run app.py`
-- **Linha de comando**, própria para agendar (cron): `python -m flight_agent ...`
-- **Um destino, uma lista ou uma região inteira** ("qualquer cidade da Europa")
-- **Datas flexíveis** (± dias) e estadia (ida e volta ou só ida), filtro de escalas e teto de preço
-- **Botão de compra** em cada oferta: abre o itinerário no Aviasales (preços reais) ou a mesma busca no Google Flights (preços simulados)
-- Aceita **nomes de cidades** no formulário ("São Paulo", "Lisboa") além de códigos IATA
-- **Monitoramento automático**: preço-alvo + prazo, verificação a cada 4 h no GitHub Actions e alerta no Telegram com link de compra
-- **Histórico** de menores preços por rota e alerta de queda ou de preço abaixo do teto
-- Preços **simulados** por padrão; **reais** via Travelpayouts / Aviasales Data API (grátis)
+## What it does
 
-## Instalação
+- **Chat and form** web app (Streamlit): `streamlit run app.py`
+- **Command line**, ready for cron: `python -m flight_agent ...`
+- **One destination, a list, or a whole region** ("any city in Europe")
+- **Flexible dates** (± days), trip length (round trip or one-way), stops filter and budget
+- **Book button** on every offer: opens the itinerary on Aviasales (real prices) or the same search
+  on Google Flights (simulated prices)
+- Accepts **city names** ("São Paulo", "Lisbon") as well as IATA codes
+- Understands requests in **English and Portuguese**
+- **Price watches**: target price + time window, checked every 4 h on GitHub Actions, Telegram alert
+  with a booking link
+- **History** of the lowest price per route, with drop and under-budget alerts
+- **Simulated** prices by default; **real** prices via the Travelpayouts / Aviasales Data API (free)
+
+## Quick start
 
 ```bash
 git clone https://github.com/thiago88sp/flight-agent.git && cd flight-agent
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env        # opcional: edite para ligar Travelpayouts / Gemini / etc.
+cp .env.example .env        # optional: add your keys (see docs/SETUP.md)
+streamlit run app.py        # opens http://localhost:8501
 ```
 
-> Em Debian/Ubuntu recentes o `pip` global é bloqueado (PEP 668); por isso o `venv`.
-> No WSL, se o projeto estiver em `/mnt/c` (ex.: OneDrive), crie o venv no disco Linux, que é
-> muito mais rápido: `python3 -m venv ~/.venvs/flight-agent && source ~/.venvs/flight-agent/bin/activate`.
+Without any key the app works with **simulated prices** and the **local rules parser**, so you can
+try everything before creating accounts.
 
-## Uso
+> On recent Debian/Ubuntu the global `pip` is blocked (PEP 668), hence the `venv`.
+> On WSL, if the project lives under `/mnt/c` (e.g. OneDrive), create the venv on the Linux disk,
+> which is much faster: `python3 -m venv ~/.venvs/flight-agent && source ~/.venvs/flight-agent/bin/activate`.
 
-### Interface web
+## Usage
+
+### Web app
 
 ```bash
 streamlit run app.py
 ```
 
-No chat, escreva em português:
+Type in the chat, in English or Portuguese:
 
+- `GRU to Lisbon around Dec 10, 10 days, up to R$ 4000`
+- `GRU to any city in Europe in March, 10 days, nonstop`
+- `to Paris, London or Rome from CNF on Jan 5, a week`
+- `Rio de Janeiro -> Miami January 15th, 12 days, ±3 days, budget of 5k`
 - `GRU para Lisboa por volta de 10/12, 10 dias, até R$ 4000`
-- `GRU para qualquer cidade da Europa em março, 10 dias, direto`
-- `para Paris, Londres ou Roma saindo de CNF em 05/01, uma semana`
-- `Rio de Janeiro -> Miami 15 de janeiro, 12 dias, ±3 dias, máximo 5 mil`
 
-No formulário lateral escolha **Cidade** (nome ou código; várias separadas por vírgula) ou **Região**.
-Veja o [glossário](#glossário-origens-e-destinos) do que pode ser digitado.
+> Numeric dates are **day/month**: `10/12` is **December 10**. To avoid ambiguity, write the month
+> name (`Dec 10`) or use ISO format (`2026-12-10`).
 
-### Linha de comando
+In the sidebar form, pick **City** (name or code; several separated by commas) or **Region**.
+See the [glossary](#glossary-origins-and-destinations) for what you can type.
+
+### Command line
 
 ```bash
-python -m flight_agent "GRU para qualquer cidade da Europa em 10/12, 10 dias, até R$ 3000"
+python -m flight_agent "GRU to any city in Europe on Dec 10, 10 days, up to R$ 3000"
 python -m flight_agent --origin GRU --dest LIS,MAD --depart 2026-12-10 --stay 10 --flex 3
-python -m flight_agent --origin GRU --region europa --depart 2026-12-10 --stay 10 --max-calls 120
+python -m flight_agent --origin GRU --region europe --depart 2026-12-10 --stay 10 --max-calls 120
 ```
 
-Regiões disponíveis: `europa`, `america_do_sul`, `eua`, `caribe`, `nordeste`
-(listas em `flight_agent/geo.py`; edite à vontade).
+Regions: `europe`, `south_america`, `usa`, `caribbean`, `brazil_northeast`
+(lists in `flight_agent/geo.py`; edit freely). The older Portuguese keys (`europa`, `eua`...) still work.
 
-### Rodar sozinho todo dia (sem interação)
+### Run it every day (unattended)
 
-Use os parâmetros diretos (0 tokens). Chame o Python do venv, sem ativar nada:
+Use direct parameters (0 AI tokens) and call the venv's Python, no activation needed:
 
 ```cron
-0 7 * * * cd "/caminho/flight-agent" && .venv/bin/python -m flight_agent --origin GRU --region europa --depart 2026-12-10 --stay 10 --flex 1 --max-price 3500
+0 7 * * * cd "/path/to/flight-agent" && .venv/bin/python -m flight_agent --origin GRU --region europe --depart 2026-12-10 --stay 10 --flex 1 --max-price 3500
 ```
 
-## Monitoramento automático (alertas no Telegram)
+## Price watches (Telegram alerts)
 
-Transforme uma busca num **monitoramento**: o agente refaz a busca sozinho a cada 4 horas e manda
-uma mensagem no Telegram, com botão de compra, quando o preço ficar **até o seu alvo**.
+Turn a search into a **price watch**: the agent re-runs it every 4 hours and sends you a Telegram
+message, with a booking button, when the price is **at or below your target**.
 
-- Avisa na primeira vez que atinge o alvo e depois **só se cair ainda mais** (sem spam).
-- Ao fim do prazo (padrão 30 dias), manda um resumo com o menor preço visto e para.
-- **Não compra sozinho**, de propósito: o Aviasales só compara preços (quem vende é a companhia
-  ou a agência), o preço do cache pode estar defasado e uma compra errada costuma não ter
-  reembolso. O alerta traz o link: um toque e você confere e compra.
+- It alerts the first time the target is hit and then **only if the price drops further** (no spam).
+- When the window ends (30 days by default), it sends a summary with the lowest price seen and stops.
+- It **does not buy tickets by itself**, on purpose: Aviasales only compares prices (the airline or
+  agency is the seller), a cached price can be outdated, and a wrong purchase is often
+  non-refundable. The alert carries the link: one tap and you check and book.
 
-### 1. Criar o bot do Telegram (uma vez)
+How to set it up, step by step: **[docs/SETUP.md](docs/SETUP.md)** (sections 4, 6 and 7). In short:
 
-1. No Telegram, abra **@BotFather** → `/newbot` → escolha nome e usuário → copie o **token**.
-2. Coloque no `.env`: `TELEGRAM_BOT_TOKEN=...`
-3. Mande um "oi" para o seu bot e descubra o seu chat id:
-   ```bash
-   python -m flight_agent.watch --telegram-chat-id   # imprime TELEGRAM_CHAT_ID=...
-   ```
-4. Coloque no `.env`: `TELEGRAM_CHAT_ID=...` e teste: `python -m flight_agent.watch --test`
+1. Create a Telegram bot with **@BotFather** and put `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` in `.env`.
+2. In the web app, after a search, open **🔔 Watch this search**, set the target and the window.
+3. On GitHub, add the secrets `TRAVELPAYOUTS_TOKEN`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` and
+   `WATCHES` (the JSON shown under **🔔 Price watches**), then run **Actions → price watches**.
 
-### 2. Criar monitoramentos
+Useful commands:
 
-Na interface, depois de uma busca, abra **🔔 Monitorar esta busca**, defina o preço-alvo e o prazo.
-Eles ficam em `watches.json` (fora do git) e aparecem em **🔔 Monitoramentos**, na barra lateral,
-onde dá para excluir e enviar uma mensagem de teste.
+```bash
+python -m flight_agent.watch --telegram-chat-id   # find your chat id
+python -m flight_agent.watch --test               # send a test message
+python -m flight_agent.watch                      # check every watch now
+python -m flight_agent.watch --list               # watches and their state
+python -m flight_agent.watch --export             # JSON for the WATCHES secret
+```
 
-### 3. Rodar sozinho no GitHub Actions (mesmo com o PC desligado)
+- Watches live in a **secret** (the repository is public and they reveal your travel plans); the
+  state (lowest price seen, last alert) lives in the **Actions cache**, not in a file in the repo.
+- When you create or delete watches in the web app, update the `WATCHES` secret with the new JSON.
+- GitHub **disables schedules** on public repositories with no commits for 60 days; if that
+  happens, re-enable the workflow under Actions.
 
-Em **Settings → Secrets and variables → Actions → New repository secret**, crie:
-
-| Secret | Valor |
-|---|---|
-| `TRAVELPAYOUTS_TOKEN` | o mesmo do `.env` |
-| `TELEGRAM_BOT_TOKEN` | o mesmo do `.env` |
-| `TELEGRAM_CHAT_ID` | o mesmo do `.env` |
-| `WATCHES` | o JSON mostrado em **🔔 Monitoramentos** (ou `python -m flight_agent.watch --export`) |
-
-Depois, em **Actions → monitorar precos → Run workflow**, rode uma vez para testar. A partir daí
-ele roda a cada 4 horas ([.github/workflows/watch.yml](.github/workflows/watch.yml)).
-
-- Os monitoramentos ficam num **secret** (o repositório é público e eles revelam seus planos de
-  viagem); o estado (menor preço visto, último aviso) fica no **cache do Actions**, não em arquivo.
-- Ao criar ou excluir monitoramentos na interface, atualize o secret `WATCHES` com o JSON novo.
-- O GitHub **desativa agendamentos** de repositórios públicos sem nenhum commit por 60 dias; se
-  isso acontecer, reative em Actions.
-
-Alternativa local (só roda com o PC/WSL ligado):
+Local alternative (only runs while the PC/WSL is on):
 
 ```cron
-17 */4 * * * cd "/caminho/flight-agent" && ~/.venvs/flight-agent/bin/python -m flight_agent.watch >> watch.log 2>&1
+17 */4 * * * cd "/path/to/flight-agent" && ~/.venvs/flight-agent/bin/python -m flight_agent.watch >> watch.log 2>&1
 ```
 
-## Glossário: origens e destinos
+## Glossary: origins and destinations
 
-Em **Origem** e **Destino** você pode digitar o **nome da cidade** (sem diferença entre maiúsculas,
-minúsculas ou acentos: `São Paulo`, `sao paulo`, `SAO PAULO`) ou o **código IATA**.
+In **From** and **To** you can type a **city name** (case and accents don't matter: `São Paulo`,
+`sao paulo`, `SAO PAULO`) or an **IATA code**.
 
-- **Nome da cidade**: aceito no chat e no formulário para as cidades das tabelas abaixo. Cada nome
-  vira o aeroporto principal indicado.
-- **Código de aeroporto** (3 letras, ex.: `CGH`): aceito em qualquer lugar, para qualquer
-  aeroporto do mundo, mesmo fora das tabelas.
-- **Código de cidade** (ex.: `SAO`, `LON`): cobre todos os aeroportos da cidade de uma vez. Com
-  preços reais (Travelpayouts) costuma trazer mais ofertas, porque inclui voos saindo ou chegando
-  em qualquer um deles.
-- No chat com Gemini ligado, cidades fora das tabelas também costumam ser entendidas. Com as regras
-  locais, use o código.
-- Para descobrir um código: busque "código IATA" + cidade, ou use a
-  [busca da IATA](https://www.iata.org/en/publications/directories/code-search/).
+- **City name**: accepted in the chat and in the form for the cities in the tables below, in
+  English or Portuguese. Each name maps to the main airport shown.
+- **Airport code** (3 letters, e.g. `CGH`): accepted everywhere, for any airport in the world,
+  even outside the tables.
+- **City code** (e.g. `SAO`, `LON`): covers every airport in the city at once. With real prices
+  (Travelpayouts) it usually returns more offers, because it includes flights from or to any of them.
+- With Gemini enabled in the chat, cities outside the tables are usually understood too. With the
+  local rules, use the code.
+- To look up a code: search "IATA code" + city, or use the
+  [IATA code search](https://www.iata.org/en/publications/directories/code-search/).
 
-### América do Sul — Brasil
+### South America — Brazil
 
-| Nome aceito | Aeroporto usado | Código da cidade | Outros aeroportos da cidade |
+| Accepted names | Airport used | City code | Other airports in the city |
 |---|---|---|---|
 | São Paulo, Guarulhos | `GRU` (Guarulhos) | `SAO` | `CGH` Congonhas, `VCP` Viracopos |
 | Congonhas | `CGH` | `SAO` | |
@@ -159,161 +160,160 @@ minúsculas ou acentos: `São Paulo`, `sao paulo`, `SAO PAULO`) ou o **código I
 | Florianópolis | `FLN` | | |
 | Manaus | `MAO` | | |
 
-### América do Sul — outros países
+### South America — other countries
 
-| Nome aceito | Aeroporto usado | Código da cidade | Outros aeroportos da cidade |
+| Accepted names | Airport used | City code | Other airports in the city |
 |---|---|---|---|
 | Buenos Aires (Argentina) | `EZE` (Ezeiza) | `BUE` | `AEP` Aeroparque |
 | Santiago (Chile) | `SCL` | | |
 | Lima (Peru) | `LIM` | | |
-| Bogotá (Colômbia) | `BOG` | | |
-| Montevidéu (Uruguai) | `MVD` | | |
+| Bogotá (Colombia) | `BOG` | | |
+| Montevideo, Montevidéu (Uruguay) | `MVD` | | |
 
-### América do Norte
+### North America
 
-| Nome aceito | Aeroporto usado | Código da cidade | Outros aeroportos da cidade |
+| Accepted names | Airport used | City code | Other airports in the city |
 |---|---|---|---|
-| Nova York, New York | `JFK` | `NYC` | `EWR` Newark, `LGA` LaGuardia |
-| Miami | `MIA` | | `FLL` Fort Lauderdale (próximo) |
+| New York, Nova York | `JFK` | `NYC` | `EWR` Newark, `LGA` LaGuardia |
+| Miami | `MIA` | | `FLL` Fort Lauderdale (nearby) |
 | Orlando | `MCO` | `ORL` | |
 | Los Angeles | `LAX` | | |
 
-### América Central e Caribe
+### Central America and the Caribbean
 
-| Nome aceito | Aeroporto usado | Código da cidade | Outros aeroportos da cidade |
+| Accepted names | Airport used | City code | Other airports in the city |
 |---|---|---|---|
-| Cancún (México) | `CUN` | | |
-| Punta Cana (Rep. Dominicana) | `PUJ` | | |
-| Panamá (Cidade do Panamá) | `PTY` | | |
+| Cancún (Mexico) | `CUN` | | |
+| Punta Cana (Dominican Republic) | `PUJ` | | |
+| Panama City, Panamá | `PTY` | | |
 
-### Europa
+### Europe
 
-| Nome aceito | Aeroporto usado | Código da cidade | Outros aeroportos da cidade |
+| Accepted names | Airport used | City code | Other airports in the city |
 |---|---|---|---|
-| Lisboa | `LIS` | | |
-| Porto | `OPO` | | |
-| Madri, Madrid | `MAD` | | |
+| Lisbon, Lisboa | `LIS` | | |
+| Porto, Oporto | `OPO` | | |
+| Madrid, Madri | `MAD` | | |
 | Barcelona | `BCN` | | |
 | Paris | `CDG` (Charles de Gaulle) | `PAR` | `ORY` Orly |
-| Londres | `LHR` (Heathrow) | `LON` | `LGW` Gatwick, `STN` Stansted |
-| Roma | `FCO` (Fiumicino) | `ROM` | `CIA` Ciampino |
-| Milão | `MXP` (Malpensa) | `MIL` | `LIN` Linate, `BGY` Bergamo |
-| Amsterdã | `AMS` | | |
+| London, Londres | `LHR` (Heathrow) | `LON` | `LGW` Gatwick, `STN` Stansted |
+| Rome, Roma | `FCO` (Fiumicino) | `ROM` | `CIA` Ciampino |
+| Milan, Milão | `MXP` (Malpensa) | `MIL` | `LIN` Linate, `BGY` Bergamo |
+| Amsterdam, Amsterdã | `AMS` | | |
 | Frankfurt | `FRA` | | |
-| Zurique | `ZRH` | | |
+| Zurich, Zurique | `ZRH` | | |
 
-### Ásia e Oriente Médio
+### Asia and the Middle East
 
-| Nome aceito | Aeroporto usado | Código da cidade | Outros aeroportos da cidade |
+| Accepted names | Airport used | City code | Other airports in the city |
 |---|---|---|---|
-| Dubai (Emirados Árabes) | `DXB` | | |
-| Tóquio, Tokyo (Japão) | `NRT` (Narita) | `TYO` | `HND` Haneda |
+| Dubai (UAE) | `DXB` | | |
+| Tokyo, Tóquio (Japan) | `NRT` (Narita) | `TYO` | `HND` Haneda |
 
-### África e Oceania
+### Africa and Oceania
 
-Nenhuma cidade com nome pré-cadastrado. Use o código, ex.: `JNB` (Joanesburgo), `CPT` (Cidade do
-Cabo), `CMN` (Casablanca), `SYD` (Sydney), `AKL` (Auckland).
+No city names are preloaded. Use the code, e.g. `JNB` (Johannesburg), `CPT` (Cape Town),
+`CMN` (Casablanca), `SYD` (Sydney), `AKL` (Auckland).
 
-### Regiões (só como destino)
+### Regions (destination only)
 
-No chat ("qualquer cidade da Europa") ou no formulário, opção **Região**. A busca percorre todos
-os destinos da lista:
+In the chat ("any city in Europe") or in the form, option **Region**. The search covers every
+destination in the list:
 
-| Região | Como escrever no chat | Destinos consultados |
+| Region | How to write it in the chat | Destinations searched |
 |---|---|---|
-| Europa | `Europa` | LIS, MAD, BCN, CDG, LHR, FCO, AMS, FRA, MXP, ZRH, OPO |
-| América do Sul | `América do Sul`, `América Latina` | EZE, SCL, LIM, BOG, MVD |
-| Estados Unidos | `Estados Unidos`, `EUA`, `USA` | MIA, MCO, JFK, LAX |
-| Caribe / América Central | `Caribe`, `América Central` | CUN, PUJ, PTY |
-| Nordeste do Brasil | `Nordeste` | REC, SSA, FOR, NAT, MCZ, JPA |
+| Europe | `Europe`, `Europa` | LIS, MAD, BCN, CDG, LHR, FCO, AMS, FRA, MXP, ZRH, OPO |
+| South America | `South America`, `Latin America`, `América do Sul` | EZE, SCL, LIM, BOG, MVD |
+| United States | `United States`, `USA`, `EUA` | MIA, MCO, JFK, LAX |
+| Caribbean / Central America | `Caribbean`, `Central America`, `Caribe` | CUN, PUJ, PTY |
+| Northeast Brazil | `Northeast Brazil`, `Nordeste` | REC, SSA, FOR, NAT, MCZ, JPA |
 
-Para incluir cidades ou mudar uma região, edite `CITIES` e `REGIONS` em
-[flight_agent/geo.py](flight_agent/geo.py) (e o nome de exibição em `CITY_NAMES`, em
+To add cities or change a region, edit `CITIES` and `REGIONS` in
+[flight_agent/geo.py](flight_agent/geo.py) (and the display name in `CITY_NAMES`, in
 [flight_agent/present.py](flight_agent/present.py)).
 
-## Custo de IA e consultas
+## AI cost and query limits
 
-| Interpretador (`LLM_PROVIDER`) | Custo | Como ativar |
+| Parser (`LLM_PROVIDER`) | Cost | How to enable |
 |---|---|---|
-| `rules` (padrão) | grátis, offline, sem conta | nada a fazer |
-| `gemini` | grátis com limites | chave em aistudio.google.com → `GEMINI_API_KEY` |
-| `ollama` | grátis, offline | `OLLAMA_MODEL=qwen2.5:3b` (com o Ollama instalado) |
-| `anthropic` | pago por token | `ANTHROPIC_API_KEY` + `pip install anthropic` |
+| `rules` (default) | free, offline, no account | nothing to do |
+| `gemini` | free with limits | key from aistudio.google.com → `GEMINI_API_KEY` ([setup](docs/SETUP.md#3-gemini-api-key-optional-smarter-chat)) |
+| `ollama` | free, offline | `OLLAMA_MODEL=qwen2.5:3b` (with Ollama installed) |
+| `anthropic` | paid per token | `ANTHROPIC_API_KEY` + `pip install anthropic` |
 
-- Assinaturas de consumo (Gemini Plus, planos do Claude) **não** incluem chave de API; a chave
-  gratuita do Gemini é criada à parte no Google AI Studio.
-- No plano gratuito do Gemini o Google pode usar o conteúdo enviado para melhorar produtos
-  (aqui só vai a frase da busca).
-- Se o LLM falhar (rede, cota, resposta ruim), o app cai sozinho nas regras locais.
-- **Consultas** = destinos × (2×flex+1) datas. O limite padrão é `MAX_CALLS=80`; acima disso a busca
-  é recusada com uma mensagem. Em pedidos só com o mês ("Europa em março") a flexibilidade é
-  ajustada automaticamente para caber no limite.
+- Consumer subscriptions (Gemini, Claude plans) do **not** include an API key; the free Gemini key
+  is created separately in Google AI Studio.
+- On Gemini's free tier Google may use the content you send to improve its products (here, only
+  the search sentence is sent).
+- If the LLM fails (network, quota, bad answer), the app falls back to the local rules automatically.
+- **Queries**: with simulated prices, destinations × (2×flex+1) dates; with real prices, one per
+  destination and month. The default limit is `MAX_CALLS=80`; above it the search is refused with
+  a message.
 
-## Preços reais (Travelpayouts)
+## Real prices (Travelpayouts)
 
-> O plano gratuito do Amadeus (Self-Service) foi desativado em 17/07; hoje ele só atende empresas
-> via contrato. Por isso o projeto usa a Aviasales Data API, gratuita.
+> Amadeus' free Self-Service tier was shut down on July 17; it now serves companies under contract
+> only. That is why this project uses the free Aviasales Data API.
 
-1. Crie conta grátis em <https://www.travelpayouts.com>. O cadastro pede o link de um "canal"
-   (site, rede social etc.); para lab, o link do seu GitHub ou LinkedIn serve.
-2. Copie o token em <https://app.travelpayouts.com/profile/api-token> e preencha
-   `TRAVELPAYOUTS_TOKEN` no `.env`.
-3. A barra lateral passa a mostrar "✅ Travelpayouts".
+How to get the token, step by step: [docs/SETUP.md](docs/SETUP.md#2-travelpayouts-token-real-prices).
 
-Os preços vêm do **cache** de buscas recentes feitas no Aviasales, não de consulta em tempo real.
-Rotas e datas pouco procuradas podem voltar sem resultado, e o valor pode estar defasado em alguns
-dias. Para acompanhar tendência e quedas de preço isso basta; confirme o preço antes de comprar.
+Prices come from a **cache** of recent searches made on Aviasales, not a live query. Rarely searched
+routes and dates may return nothing, and a price may be a few days old. That is enough to follow
+trends and price drops; confirm the price before buying.
 
-Como o cache raramente tem o par exato de datas pedido, o app faz **uma consulta por destino e mês**
-e filtra localmente: ida dentro da janela (± flexibilidade) e estadia de `dias ± STAY_TOLERANCE`
-(padrão 3). Por isso a volta mostrada pode diferir alguns dias do pedido. Com preços simulados a
-busca continua sendo em grade (uma consulta por data).
+Because the cache rarely holds the exact pair of dates requested, the app makes **one query per
+destination and month** and filters locally: departure inside the window (± flexibility) and trip
+length of `days ± STAY_TOLERANCE` (default 3). So the return date shown may differ by a few days
+from the request. With simulated prices the search is still a grid (one query per date).
 
-Pedidos só com o mês ("Europa em março") consideram qualquer dia do mês. Quando nada se encaixa,
-o app mostra as **datas mais próximas que têm preço** (para até 3 destinos, busca qualquer data da
-rota) e um botão para ver as datas exatas no Google Flights. Na prática o cache gratuito tem pouca
-coisa a mais de 2–3 meses de antecedência.
+Month-only requests ("Europe in March") accept any day of the month. When nothing fits, the app
+shows the **closest dates that have a price** (for up to 3 destinations it looks at any date on the
+route) and a button to check the exact dates on Google Flights. In practice the free cache has
+little data more than 2–3 months ahead.
 
-## Estrutura
+## Project layout
 
 ```
-app.py                  interface Streamlit (chat + formulário)
+app.py                  Streamlit web app (chat + form)
 flight_agent/
-  parsing.py            texto livre -> parâmetros (regras, Gemini, Ollama, Anthropic) e validação
-  search.py             grade datas × destinos, ranking, análise e alertas
-  providers.py          MockProvider (simulado) e TravelpayoutsProvider (real)
-  present.py            textos amigáveis: cidades, companhias, datas, preços e link de compra
-  geo.py                cidades conhecidas e regiões
-  history.py            histórico de preços (JSON Lines)
-  notify.py             alertas: tela e Telegram
-  watch.py              monitoramentos: verificação periódica e avisos
-  config.py             variáveis de ambiente / .env
-  cli.py, __main__.py   linha de comando
-tests/                  pytest (parser, busca, histórico, interface)
-.github/workflows/      tests.yml: pytest a cada push · watch.yml: monitoramentos a cada 4 h
+  parsing.py            free text -> parameters (rules EN/PT, Gemini, Ollama, Anthropic) and validation
+  search.py             dates × destinations search, ranking, analysis and alerts
+  providers.py          MockProvider (simulated) and TravelpayoutsProvider (real)
+  present.py            friendly text: cities, airlines, dates, prices and booking link
+  geo.py                known cities and regions
+  history.py            price history (JSON Lines)
+  notify.py             alerts: screen and Telegram
+  watch.py              price watches: periodic checks and alerts
+  config.py             environment variables / .env
+  cli.py, __main__.py   command line
+docs/SETUP.md           step-by-step setup of every account, key and bot
+tests/                  pytest (parser, search, history, watches, web app)
+.github/workflows/      tests.yml: pytest on every push · watch.yml: price watches every 4 h
 ```
 
-## Testes
+## Tests
 
 ```bash
 pip install -r requirements-dev.txt
 pytest -q
 ```
 
-Cobrem o interpretador por regras (incluindo regiões e listas), busca em grade, limite de consultas,
-alertas, fallback de LLM e a interface (com `streamlit.testing`). **Não há testes automáticos** para as
-chamadas reais ao Travelpayouts, Gemini e Ollama (dependem de rede e credenciais).
+They cover the rules parser (English and Portuguese, regions and lists), grid and month search,
+query limits, alerts, LLM fallback, price watches and the web app (via `streamlit.testing`).
+There are **no automated tests** for the real calls to Travelpayouts, Telegram, Gemini and
+Ollama (they depend on network and credentials).
 
-## Limitações conhecidas
+## Known limitations
 
-- Preços simulados são fictícios; servem para validar o fluxo, não para decidir compras.
-- O interpretador por regras entende o formato "origem para destino, data, dias, teto"; frases muito
-  livres funcionam melhor com Gemini/Ollama. Cidades não listadas em `geo.py` precisam do código IATA.
-- Sem busca "para qualquer lugar do mundo": o conjunto de destinos vem das regiões definidas em `geo.py`.
-- O secret `WATCHES` do GitHub é atualizado à mão (copiar e colar o JSON da interface).
+- Simulated prices are fake; they validate the flow, not purchase decisions.
+- The rules parser understands the "origin to destination, date, days, budget" shape; very free-form
+  sentences work better with Gemini/Ollama. Cities not listed in `geo.py` need their IATA code.
+- No "anywhere in the world" search: the destination set comes from the regions in `geo.py`.
+- Prices are shown in Brazilian reais (BRL).
+- The `WATCHES` secret on GitHub is updated by hand (copy and paste the JSON from the web app).
 
-## Próximos passos sugeridos
+## Suggested next steps
 
-- Criar/excluir monitoramentos pelo próprio Telegram (comandos para o bot).
-- Histórico em SQLite e gráfico de evolução de preço por rota.
-- Provedores adicionais (interface `search(...)` ou `search_month(...)`, ver `providers.py`).
+- Create/delete watches from Telegram itself (bot commands).
+- History in SQLite and a price-over-time chart per route.
+- More providers (`search(...)` or `search_month(...)` interface, see `providers.py`).

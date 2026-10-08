@@ -1,10 +1,10 @@
 """
-Interface web (chat + formulário) para o agente de passagens.
+Web app (chat + form) for the flight deal agent.
 
-Rodar:  streamlit run app.py
+Run:  streamlit run app.py
 
-O formulário lateral não usa IA. O chat usa o interpretador configurado em LLM_PROVIDER
-(padrão: regras locais, grátis). Busca, ranking e alertas são Python puro.
+The sidebar form uses no AI. The chat uses the parser set in LLM_PROVIDER
+(default: local rules, free). Search, ranking and alerts are plain Python.
 """
 import json
 from datetime import date, timedelta
@@ -19,17 +19,18 @@ from flight_agent import watch as watches
 from flight_agent import present as fmt
 from flight_agent.geo import REGION_LABELS, REGIONS
 
-st.set_page_config(page_title="Agente de Passagens", page_icon="✈️", layout="wide")
+st.set_page_config(page_title="Flight Deal Agent", page_icon="✈️", layout="wide")
 
 PARSER = fa.llm_provider()
 IS_MOCK = providers.using_mock()
 
 EXAMPLES = [
-    "São Paulo para Lisboa por volta de 10/12, 10 dias",
-    "GRU para qualquer cidade da Europa em março, 12 dias, até R$ 5000",
-    "Rio para Buenos Aires em 15/11, 5 dias, voo direto",
+    "São Paulo to Lisbon around Dec 10, 10 days",
+    "GRU to any city in Europe in March, 12 days, up to R$ 5000",
+    "Rio to Buenos Aires on Nov 15, 5 days, nonstop",
 ]
-STOPS = {"Tanto faz": None, "Só voo direto": 0, "Até 1 escala": 1, "Até 2 escalas": 2}
+STOPS = {"Any": None, "Nonstop only": 0, "Up to 1 stop": 1, "Up to 2 stops": 2}
+REPO_SECRETS = "https://github.com/thiago88sp/flight-agent/settings/secrets/actions"
 
 
 @st.cache_resource
@@ -38,7 +39,7 @@ def provider():
 
 
 def run_search(params):
-    """Busca + análise; devolve um dict pronto para renderizar."""
+    """Search + analysis; returns a dict ready to render."""
     prov = provider()
     misses = []
     results = fa.search_grid(prov, params, misses=misses)
@@ -50,54 +51,54 @@ def run_search(params):
             "info": fa.analyze(params, results), "results": results}
 
 
-# ---------------------------------------------------------------- textos
+# ---------------------------------------------------------------- text
 def dest_label(p):
     if p.get("region") in REGION_LABELS and len(p["dests"]) > 1:
-        return f"{REGION_LABELS[p['region']]} ({len(p['dests'])} destinos)"
+        return f"{REGION_LABELS[p['region']]} ({len(p['dests'])} destinations)"
     if len(p["dests"]) <= 4:
         return ", ".join(fmt.city(d) for d in p["dests"])
-    return f"{len(p['dests'])} destinos"
+    return f"{len(p['dests'])} destinations"
 
 
 def describe(params):
-    """Frase curta confirmando o que foi entendido do pedido."""
-    text = f"Procurando voos de **{fmt.city(params['origin'])}** para **{dest_label(params)}**, "
+    """Short sentence confirming what was understood from the request."""
+    text = f"Searching flights from **{fmt.city(params['origin'])}** to **{dest_label(params)}**, "
     if params.get("month") and not IS_MOCK:
-        text += f"ida em **qualquer dia de {fmt.month(params['month'])}**"
+        text += f"departing **any day in {fmt.month(params['month'])}**"
     else:
-        text += f"ida por volta de **{fmt.day(params['depart'])}**"
+        text += f"departing around **{fmt.day(params['depart'])}**"
         if params.get("flex"):
-            text += f" (± {params['flex']} dias)"
-    text += f", **{params['stay']} dias** de viagem" if params.get("stay") else ", **só ida**"
+            text += f" (± {params['flex']} days)"
+    text += f", **{params['stay']}-day** trip" if params.get("stay") else ", **one-way**"
     if params.get("max_stops") is not None:
-        text += ", " + ("só voo direto" if params["max_stops"] == 0
-                        else f"até {fmt.stops(params['max_stops'])}")
+        text += ", " + ("nonstop only" if params["max_stops"] == 0
+                        else f"up to {fmt.stops(params['max_stops'])}")
     if params.get("max_price"):
-        text += f", até {fmt.money(params['max_price'])}"
+        text += f", up to {fmt.money(params['max_price'])}"
     return text + "."
 
 
 def buy_button(origin, offer, key, primary=False):
-    st.link_button(f"Comprar no {fmt.booking_site(offer)}" if primary else "Comprar",
+    st.link_button(f"Book on {fmt.booking_site(offer)}" if primary else "Book",
                    fmt.booking_url(origin, offer), icon=":material/open_in_new:",
                    type="primary" if primary else "secondary", width="stretch", key=key)
 
 
 def best_card(origin, offer, entry, key):
     with st.container(border=True):
-        st.caption("🏆 MAIS BARATA")
+        st.caption("🏆 CHEAPEST")
         left, right = st.columns([3, 1.4], vertical_alignment="center")
         with left:
             st.markdown(f"### {fmt.city(offer['dest'])}")
             st.markdown(f"📅 {fmt.trip(offer)}  \n"
                         f"🛫 {fmt.airline(offer['airline'])} · {fmt.stops(offer['stops'])}")
             if entry["prev"] is not None:
-                trend = "📉 mais barato" if entry["diff"] < 0 else "📈 mais caro"
-                st.caption(f"{trend} que na última busca ({fmt.money(entry['prev'])}, "
+                trend = "📉 cheaper" if entry["diff"] < 0 else "📈 more expensive"
+                st.caption(f"{trend} than your last search ({fmt.money(entry['prev'])}, "
                            f"{entry['diff']:+.0f}%)")
         with right:
             st.markdown(f"## {fmt.money(offer['price'])}")
-            st.caption("ida e volta, por pessoa" if offer.get("return") else "só ida, por pessoa")
+            st.caption("round trip, per person" if offer.get("return") else "one-way, per person")
             buy_button(origin, offer, f"{key}-best", primary=True)
 
 
@@ -113,25 +114,25 @@ def offer_row(origin, offer, key):
 
 def all_offers_table(origin, results):
     df = pd.DataFrame([{
-        "Destino": fmt.city(o["dest"]), "Ida": fmt.day(o["depart"]),
-        "Volta": fmt.day(o["return"]) if o.get("return") else "—",
-        "Dias": fmt.nights(o), "Companhia": fmt.airline(o["airline"]),
-        "Escalas": fmt.stops(o["stops"]), "Preço (R$)": o["price"],
-        "Comprar": fmt.booking_url(origin, o)} for o in results])
+        "Destination": fmt.city(o["dest"]), "Out": fmt.day(o["depart"]),
+        "Back": fmt.day(o["return"]) if o.get("return") else "—",
+        "Days": fmt.nights(o), "Airline": fmt.airline(o["airline"]),
+        "Stops": fmt.stops(o["stops"]), "Price (R$)": o["price"],
+        "Book": fmt.booking_url(origin, o)} for o in results])
     st.dataframe(df, hide_index=True, width="stretch", column_config={
-        "Preço (R$)": st.column_config.NumberColumn(format="R$ %.0f"),
-        "Comprar": st.column_config.LinkColumn(display_text="Abrir ↗")})
+        "Price (R$)": st.column_config.NumberColumn(format="R$ %.0f"),
+        "Book": st.column_config.LinkColumn(display_text="Open ↗")})
 
 
 def empty_state(res, key):
     p, near = res["params"], res.get("nearby") or []
-    st.warning("😕 Não encontrei voos exatamente com esses filtros.")
+    st.warning("😕 I couldn't find flights matching exactly these filters.")
     if not IS_MOCK:
-        st.markdown("Os preços gratuitos vêm do que outros viajantes pesquisaram recentemente no "
-                    "Aviasales, então datas pouco procuradas (sobretudo a mais de 2–3 meses) "
-                    "costumam não ter preço guardado.")
+        st.markdown("The free prices come from what other travelers searched recently on "
+                    "Aviasales, so rarely searched dates (especially more than 2–3 months ahead) "
+                    "often have no cached price.")
     if near:
-        st.markdown("##### 📅 Datas mais próximas com preço disponível")
+        st.markdown("##### 📅 Closest dates with a price available")
         for i, o in enumerate(near):
             offer_row(p["origin"], o, f"{key}-near{i}")
     if len(p["dests"]) == 1:
@@ -139,33 +140,31 @@ def empty_state(res, key):
         if p.get("stay"):
             back = date.fromisoformat(p["depart"]) + timedelta(days=int(p["stay"]))
             wanted["return"] = back.isoformat()
-        st.link_button("Ver as datas exatas no Google Flights", fmt.booking_url(p["origin"], wanted),
-                       icon=":material/open_in_new:", key=f"{key}-gf")
-    st.caption("Dicas: aumente a flexibilidade de datas, aceite escalas ou tente outro mês ou "
-               "outro destino da mesma região.")
+        st.link_button("Check the exact dates on Google Flights",
+                       fmt.booking_url(p["origin"], wanted), icon=":material/open_in_new:",
+                       key=f"{key}-gf")
+    st.caption("Tips: widen the date flexibility, allow stops, or try another month or another "
+               "destination in the same region.")
     ref = min((o["price"] for o in near), default=3000)
     watch_box(p, int(ref // 100 * 100) or 100, key)
 
 
-REPO_SECRETS = "https://github.com/thiago88sp/flight-agent/settings/secrets/actions"
-
-
 def watch_box(params, suggested, key):
-    """Caixa para transformar a busca num monitoramento com preço-alvo."""
-    with st.expander("🔔 Monitorar esta busca e me avisar quando baixar"):
+    """Box that turns the search into a price watch with a target."""
+    with st.expander("🔔 Watch this search and alert me when it drops"):
         with st.form(f"{key}-watch", border=False):
             c1, c2 = st.columns(2)
-            target = c1.number_input("Avise quando custar até (R$)", 100, 100000,
+            target = c1.number_input("Alert me at or below (R$)", 100, 100000,
                                      int(suggested), step=100, key=f"{key}-target")
-            days = c2.number_input("Monitorar por (dias)", 1, 90, 30, key=f"{key}-days")
-            if st.form_submit_button("Criar monitoramento", icon=":material/notifications:"):
+            days = c2.number_input("Watch for (days)", 1, 90, 30, key=f"{key}-days")
+            if st.form_submit_button("Create watch", icon=":material/notifications:"):
                 w = watches.new_watch(params, target, days)
                 watches.add_watch(w)
-                # recarrega para a barra lateral (já desenhada) mostrar o novo monitoramento
+                # rerun so the sidebar (already drawn) shows the new watch
                 st.session_state.flash = (
-                    f"🔔 Monitorando **{w['label']}** até {fmt.day(w['until'])}: aviso no Telegram "
-                    f"quando custar até **{fmt.money(target)}**. Veja em **Monitoramentos**, na "
-                    "barra lateral, como ativar no GitHub.")
+                    f"🔔 Watching **{w['label']}** until {fmt.day(w['until'])}: Telegram alert at "
+                    f"or below **{fmt.money(target)}**. See **Price watches** in the sidebar for "
+                    "how to enable it on GitHub.")
                 st.rerun()
 
 
@@ -181,116 +180,116 @@ def render(res, key):
     origin, per_dest = p["origin"], info["per_dest"]
     multi = len(per_dest) > 1
 
-    head = f"🎉 Achei **{len(results)} oferta{'s' if len(results) > 1 else ''}**"
-    st.markdown(head + (f" em **{len(per_dest)} destinos**." if multi else "."))
+    head = f"🎉 Found **{len(results)} offer{'s' if len(results) > 1 else ''}**"
+    st.markdown(head + (f" across **{len(per_dest)} destinations**." if multi else "."))
     for a in info["alerts"]:
         st.success(f"🔔 {a}")
 
     best_card(origin, info["best"], per_dest[0], key)
     watch_box(p, int(info["best"]["price"] * 0.9 // 100 * 100) or 100, key)
 
-    # Mais opções: com vários destinos, o melhor de cada um; senão, as próximas mais baratas
+    # More options: with several destinations, the best of each; otherwise the next cheapest
     others = [e["best"] for e in per_dest[1:6]] if multi else results[1:6]
     if others:
-        st.markdown("##### " + ("Outros destinos" if multi else "Outras opções"))
+        st.markdown("##### " + ("Other destinations" if multi else "Other options"))
         for i, o in enumerate(others):
             offer_row(origin, o, f"{key}-{i}")
 
     if multi and len(per_dest) >= 3:
-        st.markdown("##### Menor preço por destino")
-        chart = pd.DataFrame({"Destino": [fmt.city(e["dest"]) for e in per_dest],
-                              "Preço (R$)": [e["best"]["price"] for e in per_dest]})
-        st.bar_chart(chart, x="Destino", y="Preço (R$)", horizontal=True, sort="Preço (R$)")
+        st.markdown("##### Lowest price per destination")
+        chart = pd.DataFrame({"Destination": [fmt.city(e["dest"]) for e in per_dest],
+                              "Price (R$)": [e["best"]["price"] for e in per_dest]})
+        st.bar_chart(chart, x="Destination", y="Price (R$)", horizontal=True, sort="Price (R$)")
     elif not multi:
         by_day = {}
         for o in results:
             by_day[o["depart"]] = min(by_day.get(o["depart"], o["price"]), o["price"])
         if len(by_day) >= 3:
-            st.markdown("##### Menor preço por data de ida")
-            st.bar_chart(pd.DataFrame({"Ida": [fmt.day(d) for d in sorted(by_day)],
-                                       "Preço (R$)": [by_day[d] for d in sorted(by_day)]}),
-                         x="Ida", y="Preço (R$)", sort=False)
+            st.markdown("##### Lowest price per departure date")
+            st.bar_chart(pd.DataFrame({"Out": [fmt.day(d) for d in sorted(by_day)],
+                                       "Price (R$)": [by_day[d] for d in sorted(by_day)]}),
+                         x="Out", y="Price (R$)", sort=False)
 
-    with st.expander(f"📋 Ver todas as {len(results)} ofertas"):
+    with st.expander(f"📋 See all {len(results)} offers"):
         all_offers_table(origin, results)
 
     if IS_MOCK:
-        st.caption("⚠️ Preços **simulados** para teste. O botão abre o Google Flights com a mesma "
-                   "rota e datas para você ver o preço real.")
+        st.caption("⚠️ **Simulated** prices for testing. The button opens Google Flights with the "
+                   "same route and dates so you can see the real price.")
     else:
-        st.caption("Preços do cache do Aviasales (buscas recentes de outros viajantes). "
-                   "O valor final é confirmado no site antes de pagar.")
+        st.caption("Prices from the Aviasales cache (recent searches by other travelers). "
+                   "The final price is confirmed on the seller's site before you pay.")
 
 
-# ---------------------------------------------------------------- barra lateral
+# ---------------------------------------------------------------- sidebar
 def watch_panel():
     items = watches.load_watches()
     state = watches.load_state()
-    with st.expander(f"🔔 Monitoramentos ({len(items)})"):
+    with st.expander(f"🔔 Price watches ({len(items)})"):
         if not items:
-            st.caption("Nenhum ainda. Faça uma busca e use **Monitorar esta busca**.")
+            st.caption("None yet. Run a search and use **Watch this search**.")
         for w in items:
             stt = state.get(w["id"], {})
-            seen = f" · menor visto {fmt.money(stt['best'])}" if stt.get("best") else ""
+            seen = f" · lowest seen {fmt.money(stt['best'])}" if stt.get("best") else ""
             c1, c2 = st.columns([5, 1], vertical_alignment="center")
-            c1.markdown(f"**{w['label']}**  \nalvo {fmt.money(w['target'])} · até "
+            c1.markdown(f"**{w['label']}**  \ntarget {fmt.money(w['target'])} · until "
                         f"{fmt.day(w['until'])}{seen}")
-            if c2.button("", icon=":material/delete:", key=f"del-{w['id']}", help="Excluir"):
+            if c2.button("", icon=":material/delete:", key=f"del-{w['id']}", help="Delete"):
                 watches.remove_watch(w["id"])
                 st.rerun()
-        st.markdown("**Telegram:** " + ("✅ configurado" if notify.telegram_enabled()
-                                         else "⚠️ falta TELEGRAM_BOT_TOKEN/CHAT_ID no .env"))
-        if notify.telegram_enabled() and st.button("Enviar mensagem de teste"):
-            ok = notify.send_telegram("✅ Teste do Agente de Passagens: os alertas chegarão aqui.")
-            (st.success if ok else st.error)("Enviado!" if ok else "Falhou; veja o terminal.")
+        st.markdown("**Telegram:** " + ("✅ configured" if notify.telegram_enabled()
+                                         else "⚠️ set TELEGRAM_BOT_TOKEN/CHAT_ID in .env"))
+        if notify.telegram_enabled() and st.button("Send a test message"):
+            ok = notify.send_telegram("✅ Flight Deal Agent test: your alerts will arrive here.")
+            (st.success if ok else st.error)("Sent!" if ok else "Failed; check the terminal.")
         if items:
-            st.markdown(f"**Ativar no GitHub:** copie o JSON abaixo para o secret `WATCHES` em "
-                        f"[Settings → Secrets → Actions]({REPO_SECRETS}). Repita ao criar ou "
-                        "excluir monitoramentos.")
+            st.markdown(f"**Enable on GitHub:** copy the JSON below into the `WATCHES` secret at "
+                        f"[Settings → Secrets → Actions]({REPO_SECRETS}). Repeat whenever you "
+                        "create or delete a watch.")
             st.code(json.dumps(items, ensure_ascii=False, separators=(",", ":")), language="json",
                     wrap_lines=True)
 
 
 with st.sidebar:
-    st.header("🔎 Nova busca")
-    mode = st.radio("Para onde?", ["Cidade", "Região"], horizontal=True)
+    st.header("🔎 New search")
+    mode = st.radio("Where to?", ["City", "Region"], horizontal=True)
     with st.form("form"):
-        origin_txt = st.text_input("Saindo de", "São Paulo",
-                                   help="Nome da cidade ou código do aeroporto. "
-                                        "SAO = todos os aeroportos de São Paulo.")
-        if mode == "Região":
-            region = st.selectbox("Região", list(REGIONS), format_func=REGION_LABELS.get)
+        origin_txt = st.text_input("From", "São Paulo",
+                                   help="City name or airport code. "
+                                        "SAO = every São Paulo airport.")
+        if mode == "Region":
+            region = st.selectbox("Region", list(REGIONS), format_func=REGION_LABELS.get)
             dest_txt = ""
         else:
             region = None
-            dest_txt = st.text_input("Indo para", "Lisboa",
-                                     help="Uma ou mais cidades separadas por vírgula "
-                                          "(ex.: Lisboa, Madri, CDG).")
-        depart = st.date_input("Data de ida (aproximada)", date.today() + timedelta(days=60),
-                               format="DD/MM/YYYY")
-        stay = st.number_input("Dias de viagem (0 = só ida)", 0, 60, 10)
-        flex = st.slider("Datas flexíveis (± dias)", 0, 7, 3 if mode != "Região" else 1)
-        max_stops = st.selectbox("Escalas", list(STOPS))
-        max_price = st.number_input("Quero pagar até (R$, 0 = sem limite)", 0, 100000, 0, step=100)
-        go = st.form_submit_button("Buscar voos", type="primary", width="stretch",
+            dest_txt = st.text_input("To", "Lisbon",
+                                     help="One or more cities separated by commas "
+                                          "(e.g. Lisbon, Madrid, CDG).")
+        depart = st.date_input("Departure date (approximate)", date.today() + timedelta(days=60),
+                               format="YYYY-MM-DD")
+        stay = st.number_input("Trip length in days (0 = one-way)", 0, 60, 10)
+        flex = st.slider("Flexible dates (± days)", 0, 7, 3 if mode != "Region" else 1)
+        max_stops = st.selectbox("Stops", list(STOPS))
+        max_price = st.number_input("Budget (R$, 0 = no limit)", 0, 100000, 0, step=100)
+        go = st.form_submit_button("Search flights", type="primary", width="stretch",
                                    icon=":material/search:")
 
-    with st.expander("ℹ️ Como funciona"):
+    with st.expander("ℹ️ How it works"):
         st.markdown(
-            "- O formulário não usa IA (0 tokens). O chat usa o interpretador abaixo.\n"
-            + ("- Consultas = destinos × datas (± flexibilidade).\n" if IS_MOCK else
-               "- Uma consulta por destino e mês; a volta pode variar "
-               f"±{config.stay_tolerance()} dias (STAY_TOLERANCE).\n")
-            + f"- Limite por busca: {config.max_calls()} consultas (MAX_CALLS).\n"
-            "- Cada busca guarda o menor preço por rota e avisa quando cai.")
+            "- The form uses no AI (0 tokens). The chat uses the parser shown below.\n"
+            + ("- Queries = destinations × dates (± flexibility).\n" if IS_MOCK else
+               "- One query per destination and month; the return may vary by "
+               f"±{config.stay_tolerance()} days (STAY_TOLERANCE).\n")
+            + f"- Limit per search: {config.max_calls()} queries (MAX_CALLS).\n"
+            "- Every search stores the lowest price per route and tells you when it drops.")
     watch_panel()
-    st.caption(f"Preços: {'⚠️ simulados' if IS_MOCK else '✅ reais (Aviasales)'}  \n"
-               "Chat: " + ("regras locais" if PARSER == "rules" else f"✅ {PARSER}"))
+    st.caption(f"Prices: {'⚠️ simulated' if IS_MOCK else '✅ real (Aviasales)'}  \n"
+               "Chat: " + ("local rules" if PARSER == "rules" else f"✅ {PARSER}"))
 
-# ---------------------------------------------------------------- conversa
-st.title("✈️ Agente de Passagens")
-st.caption("Diga para onde quer ir e quando. Eu comparo as datas e destinos e mostro onde comprar "
-           "a passagem mais barata.")
+# ---------------------------------------------------------------- conversation
+st.title("✈️ Flight Deal Agent")
+st.caption("Tell me where and when you want to go. I compare dates and destinations and show "
+           "you where to book the cheapest ticket. English or Portuguese both work.")
 
 if "history" not in st.session_state:
     st.session_state.history = []
@@ -300,8 +299,8 @@ if flash := st.session_state.pop("flash", None):
 example = None
 if not st.session_state.history:
     with st.container(border=True):
-        st.markdown("**👋 Comece por aqui.** Escreva no chat abaixo, use o formulário ao lado "
-                    "ou toque em um exemplo:")
+        st.markdown("**👋 Start here.** Type in the chat below, use the form on the left, "
+                    "or tap an example:")
         for col, ex in zip(st.columns(len(EXAMPLES)), EXAMPLES):
             if col.button(ex, width="stretch"):
                 example = ex
@@ -318,26 +317,26 @@ for i, msg in enumerate(st.session_state.history):
 
 def handle(user_text, params_fn, info=None):
     hist = st.session_state.history
-    key = f"m{len(hist) + 1}"  # índice que a resposta terá no histórico
+    key = f"m{len(hist) + 1}"  # index the answer will have in the history
     with st.chat_message("user"):
         st.markdown(user_text)
     with st.chat_message("assistant"):
         try:
-            with st.spinner("Procurando as melhores tarifas..."):
+            with st.spinner("Looking for the best fares..."):
                 params = params_fn()
                 summary = describe(params)
                 res = run_search(params)
-            note = f"interpretado por: {info['how']}" if info and info.get("how") else None
+            note = f"parsed by: {info['how']}" if info and info.get("how") else None
             st.markdown(summary)
             if note:
                 st.caption(note)
             render(res, key)
             answer = {"role": "assistant", "text": summary, "note": note, "result": res}
-        except Exception as e:  # mostra o erro sem derrubar o app
-            text = f"Não consegui entender ou processar o pedido: {e}"
+        except Exception as e:  # show the error without crashing the app
+            text = f"I couldn't understand or process that request: {e}"
             st.error(text)
             answer = {"role": "assistant", "text": text}
-    # pergunta e resposta entram juntas: uma busca interrompida não deixa pergunta órfã
+    # question and answer are stored together: an interrupted search leaves no orphan question
     hist += [{"role": "user", "text": user_text}, answer]
 
 
@@ -348,9 +347,10 @@ if go:
            "stay": int(stay) or None, "flex": int(flex), "max_stops": STOPS[max_stops],
            "max_price": float(max_price) or None}
     label = REGION_LABELS[region] if region else dest_txt
-    handle(f"{origin_txt} → {label}, ida {depart:%d/%m/%Y}", lambda: fa.normalize_params(raw))
+    handle(f"{origin_txt} → {label}, departing {fmt.day(depart.isoformat())}",
+           lambda: fa.normalize_params(raw))
 
-prompt = st.chat_input("Para onde você quer ir? Ex.: Lisboa em dezembro, 10 dias, até R$ 4000")
+prompt = st.chat_input("Where do you want to go? e.g. Lisbon in December, 10 days, up to R$ 4000")
 prompt = prompt or example
 if prompt:
     chat_info = {}

@@ -11,63 +11,70 @@ def load():
     return at
 
 
-def textos(at):
+def texts(at):
     return " ".join(m.value for c in at.chat_message for m in c.markdown)
 
 
-def test_formulario_cidade_unica_aceita_nomes():
+def test_form_single_city_accepts_names():
     at = load()
-    at.sidebar.button[0].click().run()          # padrão: "São Paulo" -> "Lisboa"
+    at.sidebar.button[0].click().run()          # defaults: "São Paulo" -> "Lisbon"
     assert not at.exception, at.exception
-    t = textos(at)
-    assert "São Paulo (GRU)" in t and "Lisboa (LIS)" in t and "Achei" in t
-    assert len(at.dataframe) == 1                # tabela completa no expander
+    t = texts(at)
+    assert "São Paulo (GRU)" in t and "Lisbon (LIS)" in t and "Found" in t
+    assert len(at.dataframe) == 1                # full table inside the expander
 
 
-def test_formulario_por_regiao():
+def test_form_by_region():
     at = load()
-    at.sidebar.radio[0].set_value("Região").run()
+    at.sidebar.radio[0].set_value("Region").run()
     at.sidebar.slider[0].set_value(0)
     at.sidebar.button[0].click().run()
     assert not at.exception, at.exception
-    t = textos(at)
-    assert "Europa (11 destinos)" in t and "Outros destinos" in t
+    t = texts(at)
+    assert "Europe (11 destinations)" in t and "Other destinations" in t
 
 
-def test_chat_por_regiao():
+def test_chat_by_region():
+    at = load()
+    at.chat_input[0].set_value("GRU to any city in Europe on 10/12, 10 days").run()
+    assert not at.exception, at.exception
+    assert "Europe" in texts(at)
+    notes = " ".join(c.value for m in at.chat_message for c in m.caption)
+    assert "parsed by: rules" in notes
+
+
+def test_chat_still_understands_portuguese():
     at = load()
     at.chat_input[0].set_value("GRU para qualquer cidade da Europa em 10/12, 10 dias").run()
     assert not at.exception, at.exception
-    assert "Europa" in textos(at)
-    notas = " ".join(c.value for m in at.chat_message for c in m.caption)
-    assert "interpretado por: regras" in notas
+    assert "Europe (11 destinations)" in texts(at)
 
 
-def test_botao_de_exemplo_dispara_busca_e_some():
+def test_example_button_runs_search_and_disappears():
     at = load()
     at.button[0].click().run()
     assert not at.exception, at.exception
-    assert "Achei" in textos(at)
+    assert "Found" in texts(at)
     at.run()
-    assert not [b for b in at.button if b.label.startswith("São Paulo para")]
+    assert not [b for b in at.button if b.label.startswith("São Paulo to")]
 
 
-def test_chat_pedido_incompleto_mostra_erro_sem_quebrar():
+def test_chat_incomplete_request_shows_error_without_crashing():
     at = load()
-    at.chat_input[0].set_value("quero viajar").run()
+    at.chat_input[0].set_value("I want to travel").run()
     assert not at.exception, at.exception
     assert len(at.error) == 1
-    assert len(at.session_state.history) == 2    # pergunta + resposta de erro
+    assert len(at.session_state.history) == 2    # question + error answer
 
 
-def test_criar_monitoramento_pela_interface():
+def test_create_watch_from_the_ui():
     from flight_agent import watch
     at = load()
     at.sidebar.button[0].click().run()
-    criar = [b for b in at.button if b.label == "Criar monitoramento"]
-    criar[0].click().run()
+    create = [b for b in at.button if b.label == "Create watch"]
+    create[0].click().run()
     assert not at.exception, at.exception
     items = watch.load_watches()
     assert len(items) == 1 and items[0]["query"]["dests"] == ["LIS"]
-    assert any("Monitorando" in s.value for s in at.success)
-    assert "Monitoramentos (1)" in " ".join(e.label for e in at.sidebar.expander)
+    assert any("Watching" in s.value for s in at.success)
+    assert "Price watches (1)" in " ".join(e.label for e in at.sidebar.expander)

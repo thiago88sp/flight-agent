@@ -1,5 +1,5 @@
-"""Alertas: sempre imprime; se TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID estiverem definidos,
-também envia pelo Telegram (com botão de compra quando houver link)."""
+"""Alerts: always printed; when TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are set, also sent
+via Telegram (with a booking button when there is a link)."""
 import html
 import os
 import re
@@ -9,7 +9,7 @@ API = "https://api.telegram.org/bot{token}/{method}"
 
 
 def valid_token(token) -> bool:
-    """Token do BotFather: '<id numérico>:<segredo>'."""
+    """BotFather token: '<numeric id>:<secret>'."""
     return bool(re.fullmatch(r"\d+:[\w-]{30,}", token or ""))
 
 
@@ -18,8 +18,8 @@ def telegram_enabled() -> bool:
 
 
 def send_telegram(text, button=None):
-    """Envia `text` (HTML do Telegram). `button` = (rótulo, url) vira um botão abaixo da
-    mensagem. Devolve True se o Telegram aceitou."""
+    """Send `text` (Telegram HTML). `button` = (label, url) becomes a button under the message.
+    Returns True if Telegram accepted it."""
     import requests
     payload = {"chat_id": os.environ["TELEGRAM_CHAT_ID"], "text": text,
                "parse_mode": "HTML", "disable_web_page_preview": True}
@@ -29,16 +29,16 @@ def send_telegram(text, button=None):
         resp = requests.post(API.format(token=os.environ["TELEGRAM_BOT_TOKEN"], method="sendMessage"),
                              json=payload, timeout=30)
     except requests.RequestException as e:
-        print(f"[erro] Telegram inacessível: {type(e).__name__}", file=sys.stderr)
+        print(f"[error] Telegram unreachable: {type(e).__name__}", file=sys.stderr)
         return False
     if resp.status_code != 200:
-        print(f"[erro] Telegram HTTP {resp.status_code}: {resp.text[:200]}", file=sys.stderr)
+        print(f"[error] Telegram HTTP {resp.status_code}: {resp.text[:200]}", file=sys.stderr)
         return False
     return True
 
 
 def telegram_chat_ids(token):
-    """Chats que mandaram mensagem ao bot recentemente: [(chat_id, nome)]."""
+    """Chats that recently messaged the bot: [(chat_id, name)]."""
     import requests
     resp = requests.get(API.format(token=token, method="getUpdates"), timeout=30)
     resp.raise_for_status()
@@ -51,6 +51,6 @@ def telegram_chat_ids(token):
 
 
 def notify(message: str, button=None) -> None:
-    print(f"\n🔔 ALERTA: {message}")
+    print(f"\n🔔 ALERT: {message}")
     if telegram_enabled():
         send_telegram(f"🔔 {html.escape(message)}", button)

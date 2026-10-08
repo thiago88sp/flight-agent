@@ -1,18 +1,18 @@
-"""Monitoramento de preços: refaz buscas salvas e avisa (Telegram) quando o preço-alvo é atingido.
+"""Price watches: re-run saved searches and alert (Telegram) when the target price is reached.
 
-Feito para rodar sozinho (GitHub Actions ou cron):
+Made to run unattended (GitHub Actions or cron):
 
-  python -m flight_agent.watch                 # verifica todos os monitoramentos ativos
-  python -m flight_agent.watch --list          # mostra os monitoramentos e o estado
-  python -m flight_agent.watch --telegram-chat-id   # descobre o seu chat id
-  python -m flight_agent.watch --test          # manda uma mensagem de teste no Telegram
+  python -m flight_agent.watch                     # check every active watch
+  python -m flight_agent.watch --list              # show the watches and their state
+  python -m flight_agent.watch --telegram-chat-id  # find your chat id
+  python -m flight_agent.watch --test              # send a test message on Telegram
 
-Monitoramentos: variável WATCHES (JSON, usada no GitHub Actions) ou o arquivo WATCHES_FILE
-(padrão watches.json, criado pelo botão "Monitorar" da interface).
-Estado (menor preço visto, último aviso): arquivo WATCH_STATE (padrão watch_state.json).
+Watches: the WATCHES variable (JSON, used on GitHub Actions) or the WATCHES_FILE file
+(default watches.json, created by the "Watch" button in the web app).
+State (lowest price seen, last alert): the WATCH_STATE file (default watch_state.json).
 
-Regras de aviso: avisa quando o menor preço fica <= alvo; depois só avisa de novo se cair
-abaixo do último preço avisado. Ao passar da data-limite, manda um resumo e para.
+Alert rules: alert when the lowest price is <= target; after that, alert again only if it drops
+below the last alerted price. Once the end date passes, send a summary and stop.
 """
 import argparse
 import html
@@ -22,11 +22,11 @@ import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from . import config, notify, parsing, providers, search  # noqa: F401 (config lê o .env)
+from . import config, notify, parsing, providers, search  # noqa: F401 (config reads .env)
 from . import present as fmt
 
 
-# ------------------------------------------------------------------ armazenamento
+# ------------------------------------------------------------------ storage
 def watches_file() -> Path:
     return Path(os.getenv("WATCHES_FILE", "watches.json"))
 
@@ -57,7 +57,7 @@ def save_state(state):
 
 
 def new_watch(params, target, days=30, label=None):
-    """Cria o registro de um monitoramento a partir dos parâmetros normalizados de uma busca."""
+    """Build a watch record from the normalized parameters of a search."""
     keep = ("origin", "dests", "region", "depart", "stay", "flex", "month", "max_stops")
     query = {k: params.get(k) for k in keep}
     wid = f"{params['origin']}-{'-'.join(params['dests'][:3])}-{params['depart']}-{int(target)}"
@@ -67,7 +67,7 @@ def new_watch(params, target, days=30, label=None):
 
 
 def add_watch(watch):
-    """Grava em watches.json (substitui um monitoramento com o mesmo id)."""
+    """Save to watches.json (replaces a watch with the same id)."""
     watches = [w for w in load_watches() if w["id"] != watch["id"]] + [watch]
     save_watches(watches)
     return watches
@@ -79,35 +79,35 @@ def remove_watch(wid):
     return watches
 
 
-# ------------------------------------------------------------------ verificação
+# ------------------------------------------------------------------ checking
 def _offer_text(origin, o):
-    return (f"<b>{html.escape(fmt.city(o['dest']))}</b> por <b>{fmt.money(o['price'])}</b>\n"
+    return (f"<b>{html.escape(fmt.city(o['dest']))}</b> for <b>{fmt.money(o['price'])}</b>\n"
             f"📅 {fmt.trip(o)}\n"
             f"🛫 {html.escape(fmt.airline(o['airline']))} · {fmt.stops(o['stops'])}")
 
 
 def check_watch(watch, provider, st, send):
-    """Verifica um monitoramento. `st` é o estado dele (alterado no lugar); `send(text, button)`
-    entrega o aviso. Devolve uma linha de log."""
+    """Check one watch. `st` is its state (updated in place); `send(text, button)` delivers the
+    alert. Returns one log line."""
     label, target = watch["label"], float(watch["target"])
     today = date.today().isoformat()
 
     if today > watch["until"]:
         if not st.get("expired"):
-            seen = f"o menor preço visto foi {fmt.money(st['best'])}" if st.get("best") else \
-                "não encontrei nenhum preço no período"
-            send(f"⏹️ Monitoramento <b>{html.escape(label)}</b> encerrado (prazo até "
-                 f"{fmt.day(watch['until'])}): {seen}. Alvo era {fmt.money(target)}.", None)
+            seen = f"the lowest price seen was {fmt.money(st['best'])}" if st.get("best") else \
+                "no price was found during that time"
+            send(f"⏹️ Watch <b>{html.escape(label)}</b> ended (it ran until "
+                 f"{fmt.day(watch['until'])}): {seen}. The target was {fmt.money(target)}.", None)
             st["expired"] = True
-        return f"{label}: expirado"
+        return f"{label}: expired"
 
     params = parsing.normalize_params(watch["query"])
     if not search.window(params):
-        return f"{label}: datas de ida já passaram"
+        return f"{label}: departure dates are in the past"
     results = search.search_grid(provider, params)
     st["checked"] = datetime.now().isoformat(timespec="minutes")
     if not results:
-        return f"{label}: nenhuma oferta agora"
+        return f"{label}: no offers right now"
 
     best = results[0]
     st["best"] = min(st.get("best") or best["price"], best["price"])
@@ -116,20 +116,20 @@ def check_watch(watch, provider, st, send):
     already = st.get("notified")
     if hit and (already is None or best["price"] < already):
         url = fmt.booking_url(params["origin"], best)
-        head = "🎯 Preço-alvo atingido!" if already is None else "📉 Caiu ainda mais!"
+        head = "🎯 Target price reached!" if already is None else "📉 It dropped even more!"
         send(f"{head} <b>{html.escape(label)}</b>\n\n{_offer_text(params['origin'], best)}\n\n"
-             f"Seu alvo: {fmt.money(target)} · monitorando até {fmt.day(watch['until'])}",
-             (f"Comprar no {fmt.booking_site(best)} ✈️", url))
+             f"Your target: {fmt.money(target)} · watching until {fmt.day(watch['until'])}",
+             (f"Book on {fmt.booking_site(best)} ✈️", url))
         st["notified"] = best["price"]
-        return f"{label}: AVISO enviado ({fmt.money(best['price'])} <= {fmt.money(target)})"
-    return f"{label}: menor agora {fmt.money(best['price'])} (alvo {fmt.money(target)})"
+        return f"{label}: ALERT sent ({fmt.money(best['price'])} <= {fmt.money(target)})"
+    return f"{label}: lowest now {fmt.money(best['price'])} (target {fmt.money(target)})"
 
 
 def run(send=None, provider=None):
-    """Verifica todos os monitoramentos e grava o estado. Devolve as linhas de log."""
+    """Check every watch and save the state. Returns the log lines."""
     if send is None:
         if not notify.telegram_enabled():
-            print("[aviso] TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID ausentes: avisos só na tela",
+            print("[warning] TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID not set: alerts only on screen",
                   file=sys.stderr)
         send = _send_default
     provider = provider or providers.get_provider()
@@ -139,10 +139,10 @@ def run(send=None, provider=None):
         st = state.setdefault(w["id"], {})
         try:
             log.append(check_watch(w, provider, st, send))
-        except Exception as e:  # um monitoramento com problema não derruba os outros
-            log.append(f"{w.get('label', w.get('id'))}: erro {e}")
+        except Exception as e:  # one broken watch must not stop the others
+            log.append(f"{w.get('label', w.get('id'))}: error {e}")
         for err in provider.pop_errors():
-            log.append(f"  [erro] {err}")
+            log.append(f"  [error] {err}")
     save_state(state)
     return log
 
@@ -153,40 +153,40 @@ def _send_default(text, button):
         notify.send_telegram(text, button)
 
 
-# ------------------------------------------------------------------ linha de comando
+# ------------------------------------------------------------------ command line
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="Monitoramento de preços com aviso no Telegram")
-    ap.add_argument("--list", action="store_true", help="lista monitoramentos e estado")
+    ap = argparse.ArgumentParser(description="Price watches with Telegram alerts")
+    ap.add_argument("--list", action="store_true", help="list watches and their state")
     ap.add_argument("--export", action="store_true",
-                    help="imprime o JSON para colar no secret WATCHES do GitHub")
+                    help="print the JSON to paste into the WATCHES secret on GitHub")
     ap.add_argument("--telegram-chat-id", action="store_true",
-                    help="mostra o chat id de quem mandou mensagem ao bot")
-    ap.add_argument("--test", action="store_true", help="envia uma mensagem de teste")
+                    help="show the chat id of whoever messaged the bot")
+    ap.add_argument("--test", action="store_true", help="send a test message")
     a = ap.parse_args(argv)
 
     if a.telegram_chat_id:
         token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
         if not token:
-            sys.exit("Defina TELEGRAM_BOT_TOKEN no .env primeiro.")
+            sys.exit("Set TELEGRAM_BOT_TOKEN in .env first.")
         if not notify.valid_token(token):
-            sys.exit("TELEGRAM_BOT_TOKEN incompleto: o formato é <números>:<segredo>, ex.: "
-                     "7123456789:AAH... Copie a linha inteira da mensagem do @BotFather.")
+            sys.exit("TELEGRAM_BOT_TOKEN is incomplete: the format is <digits>:<secret>, e.g. "
+                     "7123456789:AAH... Copy the whole line from the @BotFather message.")
         try:
             chats = notify.telegram_chat_ids(token)
         except Exception as e:
             code = getattr(getattr(e, "response", None), "status_code", None)
-            sys.exit("O Telegram recusou o token (revogado ou digitado errado?). Gere outro com "
-                     "/revoke no @BotFather." if code in (401, 404) else
-                     f"Não consegui falar com o Telegram: {type(e).__name__}")
+            sys.exit("Telegram rejected the token (revoked or mistyped?). Create a new one with "
+                     "/revoke in @BotFather." if code in (401, 404) else
+                     f"Could not reach Telegram: {type(e).__name__}")
         if not chats:
-            sys.exit("Nenhuma mensagem encontrada: mande um 'oi' para o seu bot e rode de novo.")
+            sys.exit("No messages found: send 'hi' to your bot and run this again.")
         for cid, name in chats:
             print(f"TELEGRAM_CHAT_ID={cid}   ({name})")
         return
     if a.test:
         if not notify.telegram_enabled():
-            sys.exit("Defina TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID no .env.")
-        ok = notify.send_telegram("✅ Agente de Passagens conectado. Os alertas chegarão aqui.")
+            sys.exit("Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in .env.")
+        ok = notify.send_telegram("✅ Flight Deal Agent connected. Your alerts will arrive here.")
         sys.exit(0 if ok else 1)
     if a.export:
         print(json.dumps(load_watches(), ensure_ascii=False, separators=(",", ":")))
@@ -196,8 +196,8 @@ def main(argv=None):
         for w in load_watches():
             st = state.get(w["id"], {})
             best = fmt.money(st["best"]) if st.get("best") else "—"
-            print(f"{w['label']} | alvo {fmt.money(w['target'])} | até {w['until']} | "
-                  f"menor visto {best} | última verificação {st.get('checked', '—')}")
+            print(f"{w['label']} | target {fmt.money(w['target'])} | until {w['until']} | "
+                  f"lowest seen {best} | last check {st.get('checked', '—')}")
         return
     for line in run():
         print(line)

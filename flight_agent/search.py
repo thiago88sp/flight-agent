@@ -1,11 +1,11 @@
-"""Busca em grade (datas × destinos), ranking e análise contra o histórico. Sem LLM."""
+"""Grid/month search (dates × destinations), ranking and comparison with history. No LLM."""
 from datetime import date, timedelta
 
 from . import config, history
 
 
 def date_pairs(p):
-    """Pares (ida, volta) dentro da flexibilidade, ignorando datas passadas."""
+    """(departure, return) pairs within the flexibility window, skipping past dates."""
     d0 = date.fromisoformat(p["depart"])
     flex = int(p.get("flex") or 0)
     stay = p.get("stay")
@@ -18,7 +18,7 @@ def date_pairs(p):
     return pairs
 
 
-FALLBACK_DESTS = 3  # até quantos destinos vale buscar "qualquer data" quando nada se encaixa
+FALLBACK_DESTS = 3  # up to how many destinations we search "any date" when nothing fits
 
 
 def by_month(provider):
@@ -26,8 +26,8 @@ def by_month(provider):
 
 
 def window(p):
-    """Dias de ida aceitos na busca mensal: o mês inteiro quando o pedido citou só o mês
-    (p["month"]), senão a data ± flexibilidade. Datas passadas ficam de fora."""
+    """Departure days accepted by the month search: the whole month when the request named only
+    a month (p["month"]), otherwise the date ± flexibility. Past dates are dropped."""
     if p.get("month"):
         first = date.fromisoformat(p["month"] + "-01")
         nxt = (first + timedelta(days=32)).replace(day=1)
@@ -37,19 +37,19 @@ def window(p):
 
 
 def months(p):
-    """Meses ("YYYY-MM") cobertos pela janela de ida."""
+    """Months ("YYYY-MM") covered by the departure window."""
     return sorted({d.strftime("%Y-%m") for d in window(p)})
 
 
 def plan_calls(p, provider=None):
-    """Quantas consultas ao provedor a busca vai fazer."""
+    """How many provider queries the search will make."""
     per_dest = len(months(p)) if by_month(provider) else len(date_pairs(p))
     return len(p["dests"]) * per_dest
 
 
 def nearby(p, misses, top=5):
-    """Ofertas que o cache tem mas ficaram fora dos filtros, das datas mais próximas do
-    pedido para as mais distantes (desempate pelo preço)."""
+    """Offers the cache has but that missed the filters, closest dates to the request first
+    (ties broken by price)."""
     target = date.fromisoformat(p["depart"])
     stay = int(p.get("stay") or 0)
 
@@ -63,7 +63,7 @@ def nearby(p, misses, top=5):
 
 
 def _fits(p, offer, window):
-    """Oferta de busca mensal dentro da janela de ida e da estadia (± STAY_TOLERANCE)?"""
+    """Is a month-search offer inside the departure window and trip length (± STAY_TOLERANCE)?"""
     d = offer["depart"]
     if d not in window:
         return False
@@ -77,15 +77,15 @@ def _fits(p, offer, window):
 
 
 def search_grid(provider, p, max_calls=None, misses=None):
-    """Consulta todas as combinações e devolve as ofertas ordenadas por preço.
+    """Query every combination and return the offers sorted by price.
 
-    Na busca mensal, se `misses` for uma lista, recebe as ofertas descartadas pelo filtro de
-    datas/estadia (úteis para sugerir alternativas quando nada se encaixa)."""
+    In month search, if `misses` is a list it receives the offers dropped by the date/trip-length
+    filter (used to suggest alternatives when nothing fits)."""
     limit = max_calls or config.max_calls()
     n = plan_calls(p, provider)
     if n > limit:
-        raise ValueError(f"Seriam {n} consultas (limite {limit}). Reduza a flexibilidade, "
-                         f"escolha menos destinos ou aumente MAX_CALLS.")
+        raise ValueError(f"That would take {n} queries (limit {limit}). Reduce the flexibility, "
+                         f"pick fewer destinations or raise MAX_CALLS.")
     found = []
     for dest in p["dests"]:
         if by_month(provider):
@@ -101,8 +101,8 @@ def search_grid(provider, p, max_calls=None, misses=None):
                 for offer in provider.search(p["origin"], dest, d, r):
                     found.append({**offer, "dest": dest, "depart": d.isoformat(),
                                   "return": r.isoformat() if r else None})
-    # Nada no(s) mês(es) pedido(s): busca qualquer data da rota para sugerir alternativas
-    # (só com poucos destinos, para não multiplicar as consultas)
+    # Nothing in the requested month(s): fetch any date on the route to suggest alternatives
+    # (only for a few destinations, so the number of queries stays small)
     if by_month(provider) and misses is not None and not found and not misses \
             and len(p["dests"]) <= FALLBACK_DESTS:
         for dest in p["dests"]:
@@ -118,7 +118,7 @@ def search_grid(provider, p, max_calls=None, misses=None):
 
 
 def analyze(p, results):
-    """Melhor oferta por destino, comparação com o histórico, gravação e alertas."""
+    """Best offer per destination, comparison with history, saving and alerts."""
     best_by_dest = {}
     for o in results:
         cur = best_by_dest.get(o["dest"])
@@ -131,15 +131,15 @@ def analyze(p, results):
         prev = history.last_min(route)
         diff = (best["price"] - prev) / prev * 100 if prev else None
         if diff is not None and diff <= -config.drop_alert_pct():
-            alerts.append(f"{route} caiu {abs(diff):.0f}% para R$ {best['price']:.2f}")
+            alerts.append(f"{route} dropped {abs(diff):.0f}% to R$ {best['price']:,.0f}")
         per_dest.append({"dest": dest, "route": route, "best": best, "prev": prev, "diff": diff})
         history.save(route, best)
 
     if p.get("max_price"):
-        for e in per_dest[:3]:  # até 3 destinos mais baratos abaixo do teto
+        for e in per_dest[:3]:  # up to the 3 cheapest destinations under the budget
             if e["best"]["price"] <= float(p["max_price"]):
-                alerts.append(f"{e['route']} abaixo do seu teto: R$ {e['best']['price']:.2f} "
-                              f"(limite R$ {float(p['max_price']):.2f})")
+                alerts.append(f"{e['route']} is under your budget: R$ {e['best']['price']:,.0f} "
+                              f"(limit R$ {float(p['max_price']):,.0f})")
 
     top = per_dest[0]
     return {"best": top["best"], "route": top["route"], "prev": top["prev"],

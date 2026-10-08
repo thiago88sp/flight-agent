@@ -5,7 +5,7 @@ from flight_agent import watch as w
 
 
 class Fixed:
-    """Provedor em grade com preço ajustável; conta as consultas."""
+    """Grid provider with an adjustable price; counts the queries."""
 
     def __init__(self, price):
         self.price, self.calls = price, 0
@@ -30,50 +30,50 @@ def _run(prov):
     return sent, log
 
 
-def test_avisa_ao_atingir_alvo_e_so_de_novo_se_cair():
+def test_alerts_on_target_and_again_only_if_it_drops():
     w.add_watch(_watch(target=3000))
     sent, _ = _run(Fixed(3500))
-    assert sent == []                                       # acima do alvo: silêncio
+    assert sent == []                                       # above target: silence
     sent, _ = _run(Fixed(2900))
-    assert len(sent) == 1 and "Preço-alvo atingido" in sent[0][0]
-    assert sent[0][1][0].startswith("Comprar no Google Flights")
-    assert _run(Fixed(2900))[0] == []                       # mesmo preço: não repete
+    assert len(sent) == 1 and "Target price reached" in sent[0][0]
+    assert sent[0][1][0].startswith("Book on Google Flights")
+    assert _run(Fixed(2900))[0] == []                       # same price: no repeat
     sent, _ = _run(Fixed(2700))
-    assert len(sent) == 1 and "Caiu ainda mais" in sent[0][0]
+    assert len(sent) == 1 and "dropped even more" in sent[0][0]
     st = w.load_state()[_watch(target=3000)["id"]]
     assert st["best"] == 2700 and st["notified"] == 2700
 
 
-def test_expirado_manda_resumo_uma_vez_e_nao_busca():
+def test_expired_sends_summary_once_and_does_not_search():
     watch = _watch()
     watch["until"] = (date.today() - timedelta(days=1)).isoformat()
     w.add_watch(watch)
     prov = Fixed(100)
     sent, _ = _run(prov)
-    assert len(sent) == 1 and "encerrado" in sent[0][0] and prov.calls == 0
+    assert len(sent) == 1 and "ended" in sent[0][0] and prov.calls == 0
     assert _run(prov)[0] == []
 
 
-def test_watches_do_secret_tem_prioridade(monkeypatch):
+def test_watches_secret_takes_priority(monkeypatch):
     import json
-    w.add_watch(_watch(target=1))                           # arquivo local: alvo inatingível
+    w.add_watch(_watch(target=1))                           # local file: unreachable target
     monkeypatch.setenv("WATCHES", json.dumps([_watch(target=5000)]))
     sent, _ = _run(Fixed(4000))
     assert len(sent) == 1
 
 
-def test_remover_e_substituir_por_id():
+def test_remove_and_replace_by_id():
     a = _watch(target=3000)
     w.add_watch(a)
-    w.add_watch(a)                                          # mesmo id: não duplica
+    w.add_watch(a)                                          # same id: no duplicate
     assert len(w.load_watches()) == 1
     assert w.remove_watch(a["id"]) == []
 
 
-def test_erro_em_um_monitoramento_nao_para_os_outros():
+def test_error_in_one_watch_does_not_stop_the_others():
     bad = _watch(target=3000)
-    bad["id"], bad["query"]["origin"] = "ruim", "1"         # origem inválida
+    bad["id"], bad["query"]["origin"] = "bad", "1"          # invalid origin
     w.add_watch(bad)
     w.add_watch(_watch(target=5000))
     sent, log = _run(Fixed(4000))
-    assert len(sent) == 1 and any("erro" in line for line in log)
+    assert len(sent) == 1 and any("error" in line for line in log)

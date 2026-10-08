@@ -1,11 +1,11 @@
 import pytest
 
-import flight_agent.config  # noqa: F401  lê o .env já aqui, para o fixture limpar as chaves depois
+import flight_agent.config  # noqa: F401  read .env now, so the fixture can clear the keys afterwards
 
 
 @pytest.fixture(autouse=True)
 def _isolated_env(tmp_path, monkeypatch):
-    """Cada teste usa histórico e monitoramentos próprios, regras locais e nenhuma credencial."""
+    """Each test gets its own history and watches, local rules and no credentials."""
     monkeypatch.setenv("FLIGHT_HISTORY", str(tmp_path / "history.jsonl"))
     monkeypatch.setenv("LLM_PROVIDER", "rules")
     monkeypatch.setenv("MAX_CALLS", "80")

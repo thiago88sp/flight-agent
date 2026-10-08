@@ -1,11 +1,11 @@
-name: monitorar precos
+name: price watches
 
-# Verifica os monitoramentos (secret WATCHES) e avisa no Telegram quando o preço-alvo é atingido.
-# O estado (menor preço visto, último aviso) fica no cache do Actions, não no repositório.
+# Checks the price watches (WATCHES secret) and alerts on Telegram when a target price is reached.
+# The state (lowest price seen, last alert) lives in the Actions cache, not in the repository.
 on:
   schedule:
-    - cron: "17 */4 * * *"   # a cada 4 horas (UTC); o GitHub pode atrasar alguns minutos
-  workflow_dispatch:         # botão "Run workflow" para rodar na hora
+    - cron: "17 */4 * * *"   # every 4 hours (UTC); GitHub may run it a few minutes late
+  workflow_dispatch:         # "Run workflow" button to run it right away
 
 concurrency:
   group: watch
@@ -21,13 +21,13 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install requests
-      - name: Restaurar estado
+      - name: Restore state
         uses: actions/cache/restore@v4
         with:
           path: watch_state.json
           key: watch-state-${{ github.run_id }}
           restore-keys: watch-state-
-      - name: Verificar precos
+      - name: Check prices
         env:
           WATCHES: ${{ secrets.WATCHES }}
           TRAVELPAYOUTS_TOKEN: ${{ secrets.TRAVELPAYOUTS_TOKEN }}
@@ -35,7 +35,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           LLM_PROVIDER: rules
         run: python -m flight_agent.watch
-      - name: Guardar estado
+      - name: Save state
         if: always()
         uses: actions/cache/save@v4
         with:

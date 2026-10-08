@@ -1,11 +1,11 @@
-"""Texto amigável para humanos: nomes de cidades e companhias, datas, preços e link de compra."""
+"""Human-friendly text: city and airline names, dates, prices and the booking link."""
 import unicodedata
 from datetime import date
 from urllib.parse import quote_plus
 
 from .geo import CITIES
 
-# Código IATA (aeroporto ou cidade) -> nome para exibir
+# IATA code (airport or city) -> display name
 CITY_NAMES = {
     "GRU": "São Paulo", "CGH": "São Paulo", "VCP": "Campinas", "SAO": "São Paulo",
     "GIG": "Rio de Janeiro", "SDU": "Rio de Janeiro", "RIO": "Rio de Janeiro",
@@ -13,15 +13,15 @@ CITY_NAMES = {
     "REC": "Recife", "FOR": "Fortaleza", "POA": "Porto Alegre", "CWB": "Curitiba",
     "FLN": "Florianópolis", "NAT": "Natal", "MAO": "Manaus", "MCZ": "Maceió",
     "JPA": "João Pessoa",
-    "LIS": "Lisboa", "OPO": "Porto", "MAD": "Madri", "BCN": "Barcelona",
-    "CDG": "Paris", "ORY": "Paris", "PAR": "Paris", "LHR": "Londres", "LGW": "Londres",
-    "LON": "Londres", "FCO": "Roma", "ROM": "Roma", "AMS": "Amsterdã", "FRA": "Frankfurt",
-    "MXP": "Milão", "MIL": "Milão", "ZRH": "Zurique",
-    "JFK": "Nova York", "EWR": "Nova York", "NYC": "Nova York", "MIA": "Miami",
+    "LIS": "Lisbon", "OPO": "Porto", "MAD": "Madrid", "BCN": "Barcelona",
+    "CDG": "Paris", "ORY": "Paris", "PAR": "Paris", "LHR": "London", "LGW": "London",
+    "LON": "London", "FCO": "Rome", "ROM": "Rome", "AMS": "Amsterdam", "FRA": "Frankfurt",
+    "MXP": "Milan", "MIL": "Milan", "ZRH": "Zurich",
+    "JFK": "New York", "EWR": "New York", "NYC": "New York", "MIA": "Miami",
     "MCO": "Orlando", "LAX": "Los Angeles", "EZE": "Buenos Aires", "BUE": "Buenos Aires",
-    "SCL": "Santiago", "LIM": "Lima", "BOG": "Bogotá", "MVD": "Montevidéu",
-    "CUN": "Cancún", "PUJ": "Punta Cana", "PTY": "Cidade do Panamá", "DXB": "Dubai",
-    "NRT": "Tóquio", "TYO": "Tóquio",
+    "SCL": "Santiago", "LIM": "Lima", "BOG": "Bogotá", "MVD": "Montevideo",
+    "CUN": "Cancún", "PUJ": "Punta Cana", "PTY": "Panama City", "DXB": "Dubai",
+    "NRT": "Tokyo", "TYO": "Tokyo",
 }
 
 AIRLINES = {
@@ -37,13 +37,14 @@ AIRLINES = {
     "CA": "Air China", "MS": "EgyptAir", "SA": "South African", "TA": "TACA",
 }
 
-WEEKDAYS = ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"]
-MONTH_NAMES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto",
-               "setembro", "outubro", "novembro", "dezembro"]
+WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August",
+               "September", "October", "November", "December"]
 
 
 def city(code):
-    """'MXP' -> 'Milão (MXP)'; códigos desconhecidos ficam como estão."""
+    """'MXP' -> 'Milan (MXP)'; unknown codes are returned as they are."""
     name = CITY_NAMES.get(code)
     return f"{name} ({code})" if name else code
 
@@ -53,23 +54,23 @@ def airline(code):
 
 
 def money(value):
-    """5534.0 -> 'R$ 5.534' (formato brasileiro, sem centavos)."""
-    return "R$ " + f"{value:,.0f}".replace(",", ".")
+    """5534.0 -> 'R$ 5,534' (prices are in Brazilian reais, no cents)."""
+    return f"R$ {value:,.0f}"
 
 
 def day(iso):
-    """'2026-12-01' -> 'ter, 01/12'."""
+    """'2026-12-01' -> 'Tue, Dec 1'."""
     d = date.fromisoformat(iso)
-    return f"{WEEKDAYS[d.weekday()]}, {d:%d/%m}"
+    return f"{WEEKDAYS[d.weekday()]}, {MONTH_ABBR[d.month - 1]} {d.day}"
 
 
 def month(ym):
-    """'2027-03' -> 'março/2027'."""
-    return f"{MONTH_NAMES[int(ym[5:7]) - 1]}/{ym[:4]}"
+    """'2027-03' -> 'March 2027'."""
+    return f"{MONTH_NAMES[int(ym[5:7]) - 1]} {ym[:4]}"
 
 
 def stops(n):
-    return "voo direto" if n == 0 else f"{n} escala" + ("s" if n > 1 else "")
+    return "nonstop" if n == 0 else f"{n} stop" + ("s" if n > 1 else "")
 
 
 def nights(offer):
@@ -79,21 +80,21 @@ def nights(offer):
 
 
 def trip(offer):
-    """'ida ter, 01/12 · volta sex, 11/12 (10 dias)' ou 'só ida ter, 01/12'."""
+    """'out Tue, Dec 1 · back Fri, Dec 11 (10 days)' or 'one-way Tue, Dec 1'."""
     if not offer.get("return"):
-        return f"só ida {day(offer['depart'])}"
-    return f"ida {day(offer['depart'])} · volta {day(offer['return'])} ({nights(offer)} dias)"
+        return f"one-way {day(offer['depart'])}"
+    return f"out {day(offer['depart'])} · back {day(offer['return'])} ({nights(offer)} days)"
 
 
 def booking_url(origin, offer):
-    """Onde fechar a compra: o link exato do Aviasales (preços reais) ou uma busca
-    equivalente no Google Flights (preços simulados não têm oferta de verdade)."""
+    """Where to buy: the exact Aviasales itinerary (real prices) or the same search on Google
+    Flights (simulated prices have no real offer behind them)."""
     if offer.get("link"):
         return "https://www.aviasales.com" + offer["link"]
     q = f"Flights to {offer['dest']} from {origin} on {offer['depart']}"
     if offer.get("return"):
         q += f" through {offer['return']}"
-    return f"https://www.google.com/travel/flights?q={quote_plus(q)}&curr=BRL&hl=pt-BR"
+    return f"https://www.google.com/travel/flights?q={quote_plus(q)}&curr=BRL&hl=en"
 
 
 def booking_site(offer):
@@ -101,7 +102,7 @@ def booking_site(offer):
 
 
 def to_code(text):
-    """Aceita código ('lis') ou nome de cidade ('Lisboa', 'são paulo') e devolve o IATA."""
+    """Accept a code ('lis') or a city name ('Lisbon', 'são paulo') and return the IATA code."""
     t = text.strip()
     folded = "".join(c for c in unicodedata.normalize("NFKD", t.lower())
                      if not unicodedata.combining(c))

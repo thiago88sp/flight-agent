@@ -7,18 +7,18 @@ def _o(**kw):
     return {**base, **kw}
 
 
-def test_formatos_amigaveis():
-    assert fmt.city("MXP") == "Milão (MXP)" and fmt.city("XYZ") == "XYZ"
+def test_friendly_formats():
+    assert fmt.city("MXP") == "Milan (MXP)" and fmt.city("XYZ") == "XYZ"
     assert fmt.airline("TP") == "TAP Air Portugal" and fmt.airline("ZZ") == "ZZ"
-    assert fmt.money(5534.0) == "R$ 5.534"
-    assert fmt.day("2026-12-01") == "ter, 01/12"
-    assert fmt.month("2027-03") == "março/2027"
-    assert [fmt.stops(n) for n in (0, 1, 2)] == ["voo direto", "1 escala", "2 escalas"]
-    assert fmt.trip(_o()) == "ida ter, 01/12 · volta sex, 11/12 (10 dias)"
-    assert fmt.trip(_o(**{"return": None})) == "só ida ter, 01/12"
+    assert fmt.money(5534.0) == "R$ 5,534"
+    assert fmt.day("2026-12-01") == "Tue, Dec 1"
+    assert fmt.month("2027-03") == "March 2027"
+    assert [fmt.stops(n) for n in (0, 1, 2)] == ["nonstop", "1 stop", "2 stops"]
+    assert fmt.trip(_o()) == "out Tue, Dec 1 · back Fri, Dec 11 (10 days)"
+    assert fmt.trip(_o(**{"return": None})) == "one-way Tue, Dec 1"
 
 
-def test_link_de_compra():
+def test_booking_link():
     real = _o(link="/search/SAO0112LIS1?t=abc")
     assert fmt.booking_url("GRU", real) == "https://www.aviasales.com/search/SAO0112LIS1?t=abc"
     assert fmt.booking_site(real) == "Aviasales"
@@ -27,7 +27,7 @@ def test_link_de_compra():
     assert "2026-12-11" in url and fmt.booking_site(_o()) == "Google Flights"
 
 
-def test_nome_de_cidade_vira_codigo():
+def test_city_name_becomes_code():
     assert fmt.to_code("São Paulo") == "GRU"
-    assert fmt.to_code(" lisboa ") == "LIS"
+    assert fmt.to_code(" lisbon ") == fmt.to_code("Lisboa") == "LIS"
     assert fmt.to_code("sao") == "SAO"
